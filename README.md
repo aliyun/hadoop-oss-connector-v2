@@ -43,8 +43,8 @@ Add the following dependency to your `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>org.apache.hadoop</groupId>
-    <artifactId>hadoop-aliyun</artifactId>
+    <groupId>com.aliyun</groupId>
+    <artifactId>hadoop-oss</artifactId>
     <version>${version}</version>
 </dependency>
 ```
