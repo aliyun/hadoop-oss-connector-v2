@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,7 +21,12 @@ package org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.LocalDirAllocator;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.BlockLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.MergeGetLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.ReadAheadLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.RemoteLogContext;
 import org.apache.hadoop.fs.statistics.DurationTracker;
+import org.apache.hadoop.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +34,8 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +59,7 @@ public abstract class CachingBlockManager extends BlockManager {
      * Asynchronous tasks are performed in this pool.
      */
     private final ExecutorServiceFuturePool futurePool;
+    private final String steamUuid;
 
     /**
      * Pool of shared ByteBuffer instances.
@@ -114,12 +122,14 @@ public abstract class CachingBlockManager extends BlockManager {
         this.numCachingErrors = new AtomicInteger();
         this.numReadErrors = new AtomicInteger();
         this.cachingDisabled = new AtomicBoolean();
+        this.steamUuid = blockManagerParameters.getStreamUuid();
 
         this.conf = requireNonNull(blockManagerParameters.getConf());
 
         if (this.getBlockData().getFileSize() > 0) {
             this.bufferPool = new BufferPool(bufferPoolSize, this.getBlockData().getBlockSize());
-            this.cache = this.createCache(blockManagerParameters.getMaxBlocksCount());
+            LOG.info("AliyunOSS  createCache: blocks {} size {}", blockManagerParameters.getMaxDiskBlocksCount(), this.getBlockData().getFileSize());
+            this.cache = this.createCache(steamUuid, blockManagerParameters.getMaxDiskBlocksCount());
         }
 
         this.ops = new BlockOperations();
@@ -127,17 +137,232 @@ public abstract class CachingBlockManager extends BlockManager {
         this.localDirAllocator = blockManagerParameters.getLocalDirAllocator();
     }
 
+
+    public BufferData get(int toBlockNumber, final long startOffset, int endBlockNumber, ObjectAttributes objectAttributes, ReadAheadLogContext readAheadLogContext) throws IOException {
+        final int maxRetryDelayMs = 120 * 1000;
+        final int statusUpdateDelayMs = 120 * 1000;
+        Retryer retryer = new Retryer(10, maxRetryDelayMs, statusUpdateDelayMs);
+        boolean done;
+        List<BufferData> dataList = new ArrayList<BufferData>();
+        MergeGetLogContext mergeGetLogContext = new MergeGetLogContext(readAheadLogContext);
+        BufferData data;
+//        StringBuilder errinfo = new StringBuilder();
+
+
+        do {
+            mergeGetLogContext.increaseRetryTime();
+            if (closed) {
+                throw new IOException("this stream is already closed");
+            }
+
+            data = bufferPool.acquire(toBlockNumber);
+            BufferData.State firstState = data.getState();
+            LOG.debug("acquire block {}: {}", data.getBlockNumber(), firstState);
+            mergeGetLogContext.setFirstState(firstState);
+
+
+            if (!checkBlockWriteAvailbale(data)) {
+                BlockLogContext blockLogContext = new BlockLogContext(mergeGetLogContext);
+                blockLogContext.setType("current");
+                blockLogContext.setToBlockNumber(toBlockNumber);
+
+                done = getInternal(data, objectAttributes, blockLogContext);
+                mergeGetLogContext.setLastError(blockLogContext.getLastError());
+                mergeGetLogContext.setRestryRes(true, 1, done, mergeGetLogContext.getCurrentTime());
+            }
+            else {
+                if (shouldReadFromCache(data)) {
+                    //getFromCache
+                    if (cache.containsBlock(toBlockNumber)) {
+                        if (cache.tryGet(toBlockNumber, data.getBuffer())) {
+                            data.setReady(BufferData.State.BLANK);
+                            done=true;
+                            break;
+                        }
+                    }
+                }
+
+                dataList.add(data);
+                for (int blockNumber = toBlockNumber + 1; blockNumber <= endBlockNumber; blockNumber++) {
+                    if (bufferPool.numAvailable() <= 0) {
+                        break;
+                    }
+                    BufferData tempData;
+                    tempData = bufferPool.tryAcquire(blockNumber);
+                    if (tempData == null) {
+                        break;
+                    }
+                    if (checkBlockWriteAvailbale(tempData)) {
+                        dataList.add(tempData);
+                    }
+                }
+                mergeGetLogContext.setDataListSize(dataList.size());
+                done = getInternal(dataList, objectAttributes, mergeGetLogContext);
+                mergeGetLogContext.setRestryRes(false, dataList.size(), done, mergeGetLogContext.getCurrentTime());
+
+                if (retryer.updateStatus()) {
+                    LOG.warn("waiting to get toBlockNumber: {} endBlockNumber {}", toBlockNumber, endBlockNumber);
+                    LOG.info("state = {}", this.toString());
+                }
+            }
+        }
+        while (!done && retryer.continueRetry());
+
+        if (done) {
+            return data;
+        } else {
+            String message = String.format("Wait failed for get(%d - %d) startOffset(%d) " +
+                            "bufferPoolsize(%d) bufferPool.numAvailable(%d) objectAttributes(%s) blockSize(%d) errinfo(%s)",
+                    toBlockNumber, endBlockNumber, startOffset, bufferPoolSize, bufferPool.numAvailable()
+                    , objectAttributes.toString(), getBlockData().getBlockSize());
+            throw new IllegalStateException(message);
+        }
+    }
+
+    boolean checkBlockCached(BufferData data) {
+        synchronized (data) {
+            if (data.stateEqualsOneOf(
+                    BufferData.State.CACHING,
+                    BufferData.State.READY,
+                    BufferData.State.PREFETCHING)) {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+
+    boolean checkBlockWriteAvailbale(BufferData data) {
+        synchronized (data) {
+            if (data.stateEqualsOneOf(
+                    BufferData.State.PREFETCHING,
+                    BufferData.State.CACHING,
+                    BufferData.State.READY,
+                    BufferData.State.DONE)) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    boolean shouldReadFromCache(BufferData data) {
+        synchronized (data) {
+            if (data.stateEqualsOneOf(
+                    BufferData.State.BLANK)) {
+                return true;
+            }
+            return false;
+        }
+    }
+
+
+    int getAllSize(List<BufferData> realDataList) {
+        long size = realDataList.stream().mapToLong(data -> getBlockData().getSize(data.getBlockNumber())).sum();
+        Preconditions.checkArgument(
+                size <= Integer.MAX_VALUE, "getAllSize invalid %d", size);
+        return (int) size;
+    }
+
+    private boolean getInternal(List<BufferData> dataList, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
+        List<BufferData> realDataList = new ArrayList<BufferData>();
+        for (BufferData data : dataList) {
+            synchronized (data) {
+                if (!checkBlockWriteAvailbale(data)) {
+                    break;
+                }
+                data.throwIfStateIncorrect(BufferData.State.BLANK);
+                data.updateState(BufferData.State.PREFETCHING, BufferData.State.BLANK);
+                realDataList.add(data);
+            }
+        }
+
+        //realDataList范围合并为一个大的BufferData
+        long start = (long) realDataList.get(0).getBlockNumber() * (long) getBlockData().getBlockSize();
+        int size = getAllSize(realDataList);
+
+//        LOG.error("start {} blocknum {} blocksize {}", start, realDataList.get(0).getBlockNumber(), getBlockData().getBlockSize());
+        ByteBuffer newBuffer = ByteBuffer.allocate(size);
+//        BufferData newData = new BufferData(0,newBuffer);
+
+        //使用OSSManager查询数据
+//        ossManager.getObject(objectAttributes.getBucket(), objectAttributes.getKey(), newData.getBuffer(), objectAttributes.getVersionId());
+
+//        read(newData, objectAttributes);
+        BlockLogContext blockLogContext = new BlockLogContext(remoteLogContext);
+        blockLogContext.setType("ME");
+        blockLogContext.setToBlockNumber(realDataList.get(0).getBlockNumber());
+        blockLogContext.setEndBlockNumber(realDataList.get(realDataList.size() - 1).getBlockNumber());
+        blockLogContext.setIsEndBlock(getBlockData().isLastBlock(realDataList.get(realDataList.size() - 1).getBlockNumber()));
+        read(newBuffer, start, size, objectAttributes, blockLogContext);
+        newBuffer.flip();
+
+        // 将数据newBuffer的数据复制到realDataList[0],realDataList[1]...中
+//        for (int i = 0; i < realDataList.size(); i++) {
+//            BufferData data = realDataList.get(i);
+//            synchronized (data) {
+//                //copy BufferData data to newBuffer分为realDataList的 数据
+//                data.getBuffer().put(newBuffer);
+//                data.getBuffer().flip();
+//                data.updateState(BufferData.State.READY);
+//
+//            }
+//        }
+        splitBuffer(newBuffer, realDataList);
+
+
+        return true;
+    }
+
+    /**
+     * 拆分源 ByteBuffer 数据到目标 List 中的多个 BufferData
+     *
+     * @param newBuffer    源 ByteBuffer（含数据）
+     * @param realDataList 目标列表，用于存放拆分后的 BufferData 实例
+     */
+    private void splitBuffer(ByteBuffer newBuffer, List<BufferData> realDataList) {
+        if (realDataList == null || realDataList.isEmpty()) {
+            return;
+        }
+
+        for (BufferData data : realDataList) {
+            synchronized (data) {
+                ByteBuffer dataBuffer = data.getBuffer();
+                int remaining = Math.min(newBuffer.remaining(), dataBuffer.remaining());
+
+                // 从源 buffer 中读取数据到目标 buffer
+                if (remaining > 0) {
+                    // 创建一个限制大小的视图来复制数据
+                    ByteBuffer slice = newBuffer.slice();
+                    slice.limit(remaining);
+                    dataBuffer.put(slice);
+                    dataBuffer.flip();
+
+                    // 更新源 buffer 的位置
+                    newBuffer.position(newBuffer.position() + remaining);
+                }
+
+                // 更新状态为 READY
+//                data.updateState(BufferData.State.READY);
+                data.setReady(BufferData.State.PREFETCHING);
+
+            }
+        }
+        newBuffer.clear();
+    }
+
+
     /**
      * Gets the block having the given {@code blockNumber}.
      *
      * @throws IllegalArgumentException if blockNumber is negative.
      */
     @Override
-    public BufferData get(int blockNumber, ObjectAttributes objectAttributes) throws IOException {
+    public BufferData get(int blockNumber, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
         checkNotNegative(blockNumber, "blockNumber");
 
         BufferData data;
-        final int maxRetryDelayMs = bufferPoolSize * 120 * 1000;
+        final int maxRetryDelayMs = 120 * 1000;
         final int statusUpdateDelayMs = 120 * 1000;
         Retryer retryer = new Retryer(10, maxRetryDelayMs, statusUpdateDelayMs);
         boolean done;
@@ -148,7 +373,7 @@ public abstract class CachingBlockManager extends BlockManager {
             }
 
             data = bufferPool.acquire(blockNumber);
-            done = getInternal(data, objectAttributes);
+            done = getInternal(data, objectAttributes, remoteLogContext);
 
             if (retryer.updateStatus()) {
                 LOG.warn("waiting to get block: {}", blockNumber);
@@ -166,7 +391,7 @@ public abstract class CachingBlockManager extends BlockManager {
         }
     }
 
-    private boolean getInternal(BufferData data, ObjectAttributes objectAttributes) throws IOException {
+    private boolean getInternal(BufferData data, ObjectAttributes objectAttributes, RemoteLogContext blockLogContext) throws IOException {
         Validate.checkNotNull(data, "data");
 
         // Opportunistic check without locking.
@@ -174,6 +399,7 @@ public abstract class CachingBlockManager extends BlockManager {
                 BufferData.State.PREFETCHING,
                 BufferData.State.CACHING,
                 BufferData.State.DONE)) {
+            blockLogContext.setLastError("r1-" + data.getState());
             return false;
         }
 
@@ -183,6 +409,7 @@ public abstract class CachingBlockManager extends BlockManager {
                     BufferData.State.PREFETCHING,
                     BufferData.State.CACHING,
                     BufferData.State.DONE)) {
+                blockLogContext.setLastError("r2-" + data.getState());
                 return false;
             }
 
@@ -194,7 +421,7 @@ public abstract class CachingBlockManager extends BlockManager {
             }
 
             data.throwIfStateIncorrect(BufferData.State.BLANK);
-            read(data, objectAttributes);
+            read(data, objectAttributes, blockLogContext);
             return true;
         }
     }
@@ -233,7 +460,7 @@ public abstract class CachingBlockManager extends BlockManager {
         cleanupWithLogger(LOG, cache);
 
         ops.end(op);
-        LOG.info(ops.getSummary(false));
+        LOG.debug(ops.getSummary(false));
 
         bufferPool.close();
         bufferPool = null;
@@ -246,7 +473,7 @@ public abstract class CachingBlockManager extends BlockManager {
      * @throws IllegalArgumentException if blockNumber is negative.
      */
     @Override
-    public void requestPrefetch(int blockNumber, ObjectAttributes objectAttributes) {
+    public void requestPrefetch(int blockNumber, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) {
         checkNotNegative(blockNumber, "blockNumber");
 
         if (closed) {
@@ -275,8 +502,13 @@ public abstract class CachingBlockManager extends BlockManager {
                 return;
             }
 
+            BlockLogContext blockLogContext = new BlockLogContext(remoteLogContext);
+            blockLogContext.setType("prefetch");
+            blockLogContext.setToBlockNumber(blockNumber);
+
+
             BlockOperations.Operation op = ops.requestPrefetch(blockNumber);
-            PrefetchTask prefetchTask = new PrefetchTask(data, this, Instant.now(), objectAttributes);
+            PrefetchTask prefetchTask = new PrefetchTask(data, this, Instant.now(), objectAttributes, blockLogContext);
             Future<Void> prefetchFuture = futurePool.executeFunction(prefetchTask);
             data.setPrefetch(prefetchFuture);
             ops.end(op);
@@ -299,10 +531,10 @@ public abstract class CachingBlockManager extends BlockManager {
         ops.end(op);
     }
 
-    private void read(BufferData data, ObjectAttributes objectAttributes) throws IOException {
+    private void read(BufferData data, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
         synchronized (data) {
             try {
-                readBlock(data, false, objectAttributes, BufferData.State.BLANK);
+                readBlock(data, false, objectAttributes, remoteLogContext, BufferData.State.BLANK);
             } catch (IOException e) {
                 LOG.error("error reading block {}", data.getBlockNumber(), e);
                 throw e;
@@ -310,20 +542,19 @@ public abstract class CachingBlockManager extends BlockManager {
         }
     }
 
-    private void prefetch(BufferData data, Instant taskQueuedStartTime, ObjectAttributes objectAttributes) throws IOException {
+    private void prefetch(BufferData data, Instant taskQueuedStartTime, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
         synchronized (data) {
             readBlock(
                     data,
                     true,
                     objectAttributes,
-                    BufferData.State.PREFETCHING,
-                    BufferData.State.CACHING
+                    remoteLogContext, BufferData.State.PREFETCHING
 
             );
         }
     }
 
-    private void readBlock(BufferData data, boolean isPrefetch, ObjectAttributes objectAttributes, BufferData.State... expectedState)
+    private void readBlock(BufferData data, boolean isPrefetch, ObjectAttributes objectAttributes, RemoteLogContext blockLogContext, BufferData.State expectedState)
             throws IOException {
 
         if (closed) {
@@ -347,9 +578,10 @@ public abstract class CachingBlockManager extends BlockManager {
                 // Prefer reading from cache over reading from network.
                 if (cache.containsBlock(blockNumber)) {
                     op = ops.getCached(blockNumber);
-                    cache.get(blockNumber, data.getBuffer());
-                    data.setReady(expectedState);
-                    return;
+                    if (cache.tryGet(blockNumber, data.getBuffer())) {
+                        data.setReady(expectedState);
+                        return;
+                    }
                 }
 
                 if (isPrefetch) {
@@ -362,8 +594,8 @@ public abstract class CachingBlockManager extends BlockManager {
                 long offset = getBlockData().getStartOffset(data.getBlockNumber());
                 int size = getBlockData().getSize(data.getBlockNumber());
                 ByteBuffer buffer = data.getBuffer();
-                buffer.clear();
-                read(buffer, offset, size, objectAttributes);
+                ((java.nio.Buffer) buffer).clear();
+                read(buffer, offset, size, objectAttributes, blockLogContext);
                 buffer.flip();
                 data.setReady(expectedState);
             } catch (Exception e) {
@@ -389,6 +621,39 @@ public abstract class CachingBlockManager extends BlockManager {
         }
     }
 
+
+    /**
+     * 将 List<BufferData> 按照 blockSize 和 threshold 切分为多个子列表。
+     *
+     * @param data      待切分的数据列表
+     * @param blockSize 每个 BufferData 的大小（字节数）
+     * @param threshold 每个子列表的最大累计大小（字节数），达到即切分
+     * @return 切分后的子列表集合
+     */
+    public static List<List<BufferData>> splitData(
+            List<BufferData> data,
+            long blockSize,
+            long threshold) {
+
+        // 计算每组最多包含多少个元素（基于固定大小）
+        int itemsPerGroup = (int) (threshold / blockSize);
+        List<List<BufferData>> result = new ArrayList<>();
+
+        if (itemsPerGroup <= 0) {
+//            throw new IllegalArgumentException("Threshold must be >= blockSize");
+            result.add(data);
+
+        } else {
+            for (int i = 0; i < data.size(); i += itemsPerGroup) {
+                int end = Math.min(i + itemsPerGroup, data.size());
+                List<BufferData> subList = new ArrayList<>(data.subList(i, end));
+                result.add(subList);
+            }
+        }
+
+        return result;
+    }
+
     /**
      * Read task that is submitted to the future pool.
      */
@@ -397,21 +662,21 @@ public abstract class CachingBlockManager extends BlockManager {
         private final CachingBlockManager blockManager;
         private final Instant taskQueuedStartTime;
         private final ObjectAttributes objectAttributes;
+        private final RemoteLogContext remoteLogContext;
 
-        PrefetchTask(BufferData data, CachingBlockManager blockManager, Instant taskQueuedStartTime, ObjectAttributes objectAttributes) {
+        PrefetchTask(BufferData data, CachingBlockManager blockManager, Instant taskQueuedStartTime, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) {
             this.data = data;
             this.blockManager = blockManager;
             this.taskQueuedStartTime = taskQueuedStartTime;
             this.objectAttributes = objectAttributes;
+            this.remoteLogContext = remoteLogContext;
         }
 
-        @Override
         public Void get() {
             try {
-                blockManager.prefetch(data, taskQueuedStartTime, objectAttributes);
+                blockManager.prefetch(data, taskQueuedStartTime, objectAttributes, remoteLogContext);
             } catch (Exception e) {
                 LOG.info("error prefetching block {}. {}", data.getBlockNumber(), e.getMessage());
-                LOG.debug("error prefetching block {}", data.getBlockNumber(), e);
             }
             return null;
         }
@@ -435,7 +700,7 @@ public abstract class CachingBlockManager extends BlockManager {
             return;
         }
 
-        if (cachingDisabled.get()) {
+        if (cachingDisabled.get() || this.cache.getMaxDiskBlocksCount() <= 0) {
             data.setDone();
             return;
         }
@@ -480,9 +745,6 @@ public abstract class CachingBlockManager extends BlockManager {
 
     private void addToCacheAndRelease(BufferData data, Future<Void> blockFuture,
                                       Instant taskQueuedStartTime) {
-//    prefetchingStatistics.executorAcquired(
-//        Duration.between(taskQueuedStartTime, Instant.now()));
-
         if (closed) {
             return;
         }
@@ -548,8 +810,8 @@ public abstract class CachingBlockManager extends BlockManager {
         }
     }
 
-    protected BlockCache createCache(int maxBlocksCount) {
-        return new SingleFilePerBlockCache(maxBlocksCount);
+    protected BlockCache createCache(String steamUuid, int maxBlocksCount) {
+        return new SingleFilePerBlockCache(steamUuid, maxBlocksCount);
     }
 
     protected void cachePut(int blockNumber, ByteBuffer buffer) throws IOException {

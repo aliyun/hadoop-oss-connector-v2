@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -64,6 +64,8 @@ public class SingleFilePerBlockCache implements BlockCache {
      */
     private final ReentrantReadWriteLock blocksLock;
 
+    private final String steamUuid;
+
     /**
      * Head of the linked list.
      */
@@ -89,7 +91,10 @@ public class SingleFilePerBlockCache implements BlockCache {
 
 //  private final PrefetchingStatistics prefetchingStatistics;
 
-
+    public int getMaxDiskBlocksCount()
+    {
+        return maxBlocksCount;
+    }
     /**
      * File attributes attached to any intermediate temporary file created during index creation.
      */
@@ -201,14 +206,17 @@ public class SingleFilePerBlockCache implements BlockCache {
      * Constructs an instance of a {@code SingleFilePerBlockCache}.
      *
      * @param prefetchingStatistics statistics for this stream.
-     * @param maxBlocksCount        max blocks count to be kept in cache at any time.
      * @param trackerFactory        tracker with statistics to update
+     * @param steamUuid
+     * @param maxBlocksCount        max blocks count to be kept in cache at any time.
      */
-    public SingleFilePerBlockCache(int maxBlocksCount) {
+    public SingleFilePerBlockCache(String steamUuid, int maxBlocksCount) {
 //    this.prefetchingStatistics = requireNonNull(prefetchingStatistics);
         this.closed = new AtomicBoolean(false);
         this.maxBlocksCount = maxBlocksCount;
-        Preconditions.checkArgument(maxBlocksCount > 0, "maxBlocksCount should be more than 0");
+        this.steamUuid = steamUuid;
+        LOG.info("SingleFilePerBlockCache steamUuid:{} maxBlocksCount:{}", steamUuid, maxBlocksCount);
+        Preconditions.checkArgument(maxBlocksCount >= 0, "maxBlocksCount should be more than 0");
         blocks = new ConcurrentHashMap<>();
         blocksLock = new ReentrantReadWriteLock();
     }
@@ -237,6 +245,27 @@ public class SingleFilePerBlockCache implements BlockCache {
         return blocks.size();
     }
 
+    @Override
+    public boolean tryGet(int blockNumber, ByteBuffer buffer) {
+        if (closed.get()) {
+            return false;
+        }
+
+        if (!blocks.containsKey(blockNumber)) {
+            return false;
+        }
+
+        try {
+            get(blockNumber, buffer);
+            return true;
+        } catch (IOException e) {
+            LOG.warn("stream {} Failed to get block cache {} ,block has been deleted", steamUuid, blockNumber);
+            buffer.clear();
+            return false;
+        }
+    }
+
+
     /**
      * Gets the block having the given {@code blockNumber}.
      *
@@ -253,11 +282,24 @@ public class SingleFilePerBlockCache implements BlockCache {
         Entry entry = getEntry(blockNumber);
         entry.takeLock(Entry.LockType.READ);
         try {
-            buffer.clear();
-            readFile(entry.path, buffer);
+            LOG.error("AliyunOss disk cache get blockNumber {}",blockNumber);
 
+            ((java.nio.Buffer) buffer).clear();
+            readFile(entry.path, buffer);
             buffer.rewind();
             validateEntry(entry, buffer);
+        } catch (NoSuchFileException e) {
+            try {
+                blocksLock.writeLock().lock();
+//                deleteBlockFileAndEvictCache(entry);
+                entryListSize--;
+                blocks.remove(entry);
+            } finally {
+                blocksLock.writeLock().unlock();
+            }
+
+            LOG.warn("cache.get: stream {} No such blocks {} file {} ", steamUuid, blockNumber, entry.path);
+            throw e;
         } finally {
             entry.releaseLock(Entry.LockType.READ);
         }
@@ -370,27 +412,33 @@ public class SingleFilePerBlockCache implements BlockCache {
         }
 
         Validate.checkPositiveInteger(buffer.limit(), "buffer.limit()");
+        try {
+            blocksLock.writeLock().lock();
+            Path blockFilePath = getCacheFilePath(conf, blockNumber, localDirAllocator);
+            long size = Files.size(blockFilePath);
+            if (size != 0) {
+                String message =
+                        String.format("[%d] temp file already has data. %s (%d)",
+                                blockNumber, blockFilePath, size);
+                throw new IllegalStateException(message);
+            }
 
-        Path blockFilePath = getCacheFilePath(conf, blockNumber, localDirAllocator);
-        long size = Files.size(blockFilePath);
-        if (size != 0) {
-            String message =
-                    String.format("[%d] temp file already has data. %s (%d)",
-                            blockNumber, blockFilePath, size);
-            throw new IllegalStateException(message);
+            writeFile(blockFilePath, buffer);
+            long checksum = BufferData.getChecksum(buffer);
+            Entry entry = new Entry(blockNumber, blockFilePath, buffer.limit(), checksum);
+
+
+            blocks.put(blockNumber, entry);
+            // Update stream_read_blocks_in_cache stats only after blocks map is updated with new file
+            // entry to avoid any discrepancy related to the value of stream_read_blocks_in_cache.
+            // If stream_read_blocks_in_cache is updated before updating the blocks map here, closing of
+            // the input stream can lead to the removal of the cache file even before blocks is added
+            // with the new cache file, leading to incorrect value of stream_read_blocks_in_cache.
+            //    prefetchingStatistics.blockAddedToFileCache();
+            addToLinkedListAndEvictIfRequired(entry);
+        } finally {
+            blocksLock.writeLock().unlock();
         }
-
-        writeFile(blockFilePath, buffer);
-        long checksum = BufferData.getChecksum(buffer);
-        Entry entry = new Entry(blockNumber, blockFilePath, buffer.limit(), checksum);
-        blocks.put(blockNumber, entry);
-        // Update stream_read_blocks_in_cache stats only after blocks map is updated with new file
-        // entry to avoid any discrepancy related to the value of stream_read_blocks_in_cache.
-        // If stream_read_blocks_in_cache is updated before updating the blocks map here, closing of
-        // the input stream can lead to the removal of the cache file even before blocks is added
-        // with the new cache file, leading to incorrect value of stream_read_blocks_in_cache.
-//    prefetchingStatistics.blockAddedToFileCache();
-        addToLinkedListAndEvictIfRequired(entry);
     }
 
     /**
@@ -435,12 +483,13 @@ public class SingleFilePerBlockCache implements BlockCache {
                     PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT_UNIT);
         } else {
             try {
-                if (Files.deleteIfExists(elementToPurge.path)) {
-                    entryListSize--;
-//          prefetchingStatistics.blockRemovedFromFileCache();
-                    blocks.remove(elementToPurge.blockNumber);
-//          prefetchingStatistics.blockEvictedFromFileCache();
-                }
+//                if (Files.deleteIfExists(elementToPurge.path)) {
+//                    entryListSize--;
+//                    blocks.remove(elementToPurge.blockNumber);
+//                }
+                Files.deleteIfExists(elementToPurge.path);
+                entryListSize--;
+                blocks.remove(elementToPurge.blockNumber);
             } catch (IOException e) {
                 LOG.warn("Failed to delete cache file {}", elementToPurge.path, e);
             } finally {
@@ -477,13 +526,14 @@ public class SingleFilePerBlockCache implements BlockCache {
     protected Path getCacheFilePath(final Configuration conf,
                                     int blockNumber, final LocalDirAllocator localDirAllocator)
             throws IOException {
-        return getTempFilePath(conf, localDirAllocator, String.valueOf(blockNumber));
+        return getTempFilePath(conf, localDirAllocator,
+                new StringBuilder().append(steamUuid).append("-").append(blockNumber).toString());
     }
 
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            LOG.debug(getStats());
+            LOG.debug("AliyunOSS cache closed: {} {}", steamUuid, getStats());
             deleteCacheFiles();
         }
     }
@@ -492,30 +542,39 @@ public class SingleFilePerBlockCache implements BlockCache {
      * Delete cache files as part of the close call.
      */
     private void deleteCacheFiles() {
-        int numFilesDeleted = 0;
-        for (Entry entry : blocks.values()) {
-            boolean lockAcquired =
-                    entry.takeLock(Entry.LockType.WRITE, PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT,
+        try {
+            blocksLock.writeLock().lock();
+            int numFilesDeleted = 0;
+            LOG.debug("AliyunOSS  Prefetch cache close to be Deleted {} cache files ,stream {}", blocks.size(), steamUuid);
+
+            for (Entry entry : blocks.values()) {
+                boolean lockAcquired =
+                        entry.takeLock(Entry.LockType.WRITE, PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT,
+                                PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT_UNIT);
+                if (!lockAcquired) {
+                    LOG.error("Steam {} Cache file {} deletion would not be attempted as write lock could not"
+                                    + " be acquired within {} {}", steamUuid, entry.path,
+                            PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT,
                             PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT_UNIT);
-            if (!lockAcquired) {
-                LOG.error("Cache file {} deletion would not be attempted as write lock could not"
-                                + " be acquired within {} {}", entry.path,
-                        PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT,
-                        PrefetchConstants.PREFETCH_WRITE_LOCK_TIMEOUT_UNIT);
-                continue;
-            }
-            try {
-                if (Files.deleteIfExists(entry.path)) {
-//          prefetchingStatistics.blockRemovedFromFileCache();
-                    numFilesDeleted++;
+                    continue;
                 }
-            } catch (IOException e) {
-                LOG.warn("Failed to delete cache file {}", entry.path, e);
-            } finally {
-                entry.releaseLock(Entry.LockType.WRITE);
+                try {
+                    if (Files.deleteIfExists(entry.path)) {
+//          prefetchingStatistics.blockRemovedFromFileCache();
+                        LOG.debug("AliyunOSS  Prefetch cache delete cache stream {}  file {}", steamUuid, entry.path);
+
+                        numFilesDeleted++;
+                    }
+                } catch (IOException e) {
+                    LOG.warn("AliyunOSS  Prefetch cache Failed to delete cache stream {}  file {}", steamUuid, entry.path, e);
+                } finally {
+                    entry.releaseLock(Entry.LockType.WRITE);
+                }
             }
+            LOG.debug("AliyunOSS  Prefetch cache close: Deleted {} cache files ,stream {}", numFilesDeleted, steamUuid);
+        } finally {
+            blocksLock.writeLock().unlock();
         }
-        LOG.debug("Prefetch cache close: Deleted {} cache files", numFilesDeleted);
     }
 
     @Override
@@ -640,8 +699,10 @@ public class SingleFilePerBlockCache implements BlockCache {
                 localDirAllocator.getLocalPathForWrite(readPrefix.toString(), conf);
         File dir = new File(path.getParent().toUri().getPath());
         String prefix = path.getName();
+        LOG.debug("creating temp file {}", prefix);
         File tmpFile = File.createTempFile(prefix, BINARY_FILE_SUFFIX, dir);
         Path tmpFilePath = Paths.get(tmpFile.toURI());
         return Files.setPosixFilePermissions(tmpFilePath, TEMP_FILE_ATTRS);
     }
+
 }

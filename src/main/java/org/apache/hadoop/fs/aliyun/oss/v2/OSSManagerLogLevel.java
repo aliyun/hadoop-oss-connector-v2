@@ -25,7 +25,7 @@ package org.apache.hadoop.fs.aliyun.oss.v2;
  * - STATISTIC: Basic statistics collection
  * - DETAIL: Detailed performance metrics collection
  */
-public enum PerformanceLevel {
+public enum OSSManagerLogLevel {
   NONE(0, "none"),
   STATISTIC(1, "statistic"),
   DETAIL(2, "detail");
@@ -33,7 +33,7 @@ public enum PerformanceLevel {
   private final int value;
   private final String name;
 
-  PerformanceLevel(int value, String name) {
+  OSSManagerLogLevel(int value, String name) {
     this.value = value;
     this.name = name;
   }
@@ -59,7 +59,7 @@ public enum PerformanceLevel {
    * @param other the other performance level to compare with
    * @return true if this level is greater than or equal to the other
    */
-  public boolean isAtLeast(PerformanceLevel other) {
+  public boolean isAtLeast(OSSManagerLogLevel other) {
     return this.compareTo(other) >= 0;
   }
 
@@ -69,8 +69,8 @@ public enum PerformanceLevel {
    * @return the corresponding PerformanceLevel
    * @throws IllegalArgumentException if no matching level is found
    */
-  public static PerformanceLevel fromValue(int value) {
-    for (PerformanceLevel level : values()) {
+  public static OSSManagerLogLevel fromValue(int value) {
+    for (OSSManagerLogLevel level : values()) {
       if (level.value == value) {
         return level;
       }
@@ -84,8 +84,8 @@ public enum PerformanceLevel {
    * @return the corresponding PerformanceLevel
    * @throws IllegalArgumentException if no matching level is found
    */
-  public static PerformanceLevel fromName(String name) {
-    for (PerformanceLevel level : values()) {
+  public static OSSManagerLogLevel fromName(String name) {
+    for (OSSManagerLogLevel level : values()) {
       if (level.name.equalsIgnoreCase(name)) {
         return level;
       }

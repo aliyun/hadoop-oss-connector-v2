@@ -20,6 +20,7 @@
 package org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream;
 
 import com.aliyun.sdk.service.oss2.models.GetObjectResult;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.RemoteLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,17 +64,18 @@ public class RemoteObjectReader implements Closeable {
   /**
    * Stars reading at {@code offset} and reads upto {@code size} bytes into {@code buffer}.
    *
-   * @param buffer  the buffer into which data is returned
-   * @param offset  the absolute offset into the underlying file where reading starts.
-   * @param size    the number of bytes to be read.
    * @param context
+   * @param buffer          the buffer into which data is returned
+   * @param offset          the absolute offset into the underlying file where reading starts.
+   * @param size            the number of bytes to be read.
+   * @param blockLogContext
    * @return number of bytes actually read.
    * @throws IOException              if there is an error reading from the file.
    * @throws IllegalArgumentException if buffer is null.
    * @throws IllegalArgumentException if offset is outside of the range [0, file size].
    * @throws IllegalArgumentException if size is zero or negative.
    */
-  public int read(ByteBuffer buffer, long offset, int size, ObjectAttributes objectAttributes) throws IOException {
+  public int read(ByteBuffer buffer, long offset, int size, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
 //    Validate.checkNotNull(buffer, "buffer");
 //    Validate.checkWithinRange(offset, "offset", 0, this.remoteObject.size());
 //    Validate.checkPositiveInteger(size, "size");
@@ -82,8 +84,8 @@ public class RemoteObjectReader implements Closeable {
       return -1;
     }
 
-    int reqSize = (int) Math.min(size, this.remoteObject.size() - offset);
-    return readOneBlockWithRetries(buffer, offset, reqSize, objectAttributes);
+//    int reqSize = (int) Math.min(size, this.remoteObject.size() - offset);
+    return readOneBlockWithRetries(buffer, offset, size, objectAttributes,remoteLogContext);
   }
 
   @Override
@@ -91,12 +93,12 @@ public class RemoteObjectReader implements Closeable {
     this.closed = true;
   }
 
-  private int readOneBlockWithRetries(ByteBuffer buffer, long offset, int size, ObjectAttributes objectAttributes)
+  private int readOneBlockWithRetries(ByteBuffer buffer, long offset, int size, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext)
       throws IOException {
 
 
     try {
-      this.readOneBlock(buffer, offset, size, objectAttributes);
+      this.readOneBlock(buffer, offset, size, objectAttributes,remoteLogContext);
     } catch (EOFException e) {
       // the base implementation swallows EOFs.
       return -1;
@@ -113,14 +115,14 @@ public class RemoteObjectReader implements Closeable {
       return numBytesRead;
   }
 
-  private void readOneBlock(ByteBuffer buffer, long offset, int size, ObjectAttributes context)
+  private void readOneBlock(ByteBuffer buffer, long offset, int size, ObjectAttributes context, RemoteLogContext remoteLogContext)
       throws IOException {
     int readSize = Math.min(size, buffer.remaining());
     if (readSize == 0) {
       return;
     }
 
-    GetObjectResult getObjectResult = remoteObject.openForRead(offset, readSize, context);
+    GetObjectResult getObjectResult = remoteObject.openForRead(offset, readSize, context,remoteLogContext);
     InputStream inputStream =getObjectResult.body();
 
     int numRemainingBytes = readSize;

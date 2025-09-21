@@ -58,7 +58,7 @@ public enum InputPolicy {
         return randomIO;
     }
 
-    boolean isAdaptive() {
+    public boolean isAdaptive() {
         return adaptive;
     }
 

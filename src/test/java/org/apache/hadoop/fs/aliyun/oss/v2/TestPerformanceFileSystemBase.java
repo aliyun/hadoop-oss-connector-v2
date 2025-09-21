@@ -30,25 +30,21 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.IOException;
-import java.util.Random;
 import java.util.UUID;
 
 import static org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSTestUtils.getURI;
-import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.PREFETCH_VERSION_KEY;
+import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit test for AliyunOSSFileSystem basic operations including
  * open, write, and read interfaces.
  */
-public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
+public class TestPerformanceFileSystemBase {
 
     private FileSystem fs;
     private Configuration conf;
     private Path testRootPath;
-
-//  @Param({"org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory", "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory"})
-//  private String impl;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -77,6 +73,10 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
         conf.set("fs.oss.client.factory.impl", ossClientImpl);
         conf.set("fs.oss.impl", FileSystemImpl);
         conf.set(PREFETCH_VERSION_KEY, "v2");
+        conf.set(PREFETCH_BLOCK_SIZE_KEY, "5");
+        conf.set(READAHEAD_RANGE, "2");
+        conf.setInt(SMALL_FILE_THRESHOLD_KEY, 1);
+
         // For testing purposes, we'll use a local test path
         // In a real test, you would configure actual OSS credentials
 
@@ -95,10 +95,7 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
 
     @ParameterizedTest
     @CsvSource({
-//            "org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
-
-//          "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory","org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem",
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testWriteAndRead(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -108,7 +105,7 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
         Path testFile = new Path(testRootPath, "test-file.txt");
 
         // Test write operation
-        String testData = "Hello, Aliyun OSS FileSystem!";
+        String testData = "0123456789abcdefghij0123456789";
         byte[] testDataBytes = testData.getBytes();
 
         try (FSDataOutputStream out = fs.create(testFile, true)) {
@@ -124,15 +121,15 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
             int bytesRead = in.read(buffer);
 
             assertEquals(testDataBytes.length, bytesRead, "Should read the same number of bytes");
+            //print testDataBytes
+            System.out.println("------buffer: " + new String(buffer));
             assertArrayEquals(testDataBytes, buffer, "Should read the same data");
         }
     }
 
     @ParameterizedTest
     @CsvSource({
-//            "org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
-//          "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory","org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem",
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testWriteReadMultipleTimes(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -169,10 +166,7 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
 
     @ParameterizedTest
     @CsvSource({
-//            "org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
-
-//          "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory","org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem",
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testAppendAndRead(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -192,8 +186,8 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
         } catch (IOException e) {
             // If append is not supported, that's OK for this test
             // Just verify the initial data can be read
-            try (FSDataInputStream in = fs.open(testFile)) {
-                byte[] buffer = new byte[1024];
+            try (FSDataInputStream in = fs.open(testFile, 5)) {
+                byte[] buffer = new byte[100];
                 int bytesRead = in.read(buffer);
                 String readData = new String(buffer, 0, bytesRead);
 
@@ -218,10 +212,7 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
 
     @ParameterizedTest
     @CsvSource({
-//            "org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
-
-//          "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory","org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem",
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testReadWithBuffer(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -277,33 +268,25 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
 
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
-    public void testRead128MB(String ossClientImpl, String FileSystemImpl) throws IOException {
+    public void testReadWithBuffer1(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
 
         // Create a test file path
-        Path testFile = new Path(testRootPath, "test-size_16MB.txt");
-        testFile= new Path("root-path/test-e32a92fa-664b-43ba-aa93-520bd8e24648/test-size_16MB_01.txt");
-        // 生成一个16MB的string
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 16 * 1024 * 102; i++) {
-            sb.append("0123456789");
-        }
-        String content = sb.toString();
+        Path testFile = new Path(testRootPath, "test-buffer.txt");
 
         // Write test data
-//        byte[] size_16MB = new byte[16 * 1024 * 1024];
-        byte[] size_16MB = content.getBytes();
-        // Fill the buffer with random data
-        Random random = new Random();
-        random.nextBytes(size_16MB);
-
-        try (FSDataOutputStream out = fs.create(testFile, false)) {
-            out.write(size_16MB);
+        StringBuilder testDataBuilder = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            testDataBuilder.append("Line ").append(i).append("\n");
         }
-        catch (Exception e) {
-            e.printStackTrace();
+        String testData = testDataBuilder.toString();
+        byte[] testDataBytes = testData.getBytes();
+
+        try (FSDataOutputStream out = fs.create(testFile, true)) {
+            out.write(testDataBytes);
         }
 
         // Verify file exists
@@ -312,19 +295,21 @@ public class AliyunOSSPerformanceFileSystemWithPrefetchTest {
 
         // Test read operation with different buffer sizes
         try (FSDataInputStream in = fs.open(testFile, 512)) {
-            byte[] buffer = new byte[512*1024];
+            byte[] buffer = new byte[testDataBytes.length];
             StringBuilder readDataBuilder = new StringBuilder();
             int bytesRead;
-            int totalBytesRead = 0;
 
-            while ((bytesRead = in.read(buffer)) != -1) {
-                readDataBuilder.append(new String(buffer, 0, bytesRead));
-                totalBytesRead += bytesRead;
+            int i = 0;
+            while ((bytesRead = in.read()) != -1) {
+                buffer[i] = (byte) bytesRead;
+                i++;
             }
+            assertArrayEquals(testDataBytes, buffer, "Should read the same data with 512-byte buffer");
 
-            String readData = readDataBuilder.toString();
-            System.out.println("Read " + totalBytesRead + " bytes.");
-            assertEquals(size_16MB.length, totalBytesRead, "Should read the same data with 512-byte buffer");
         }
+
+
     }
+
+
 }

@@ -19,6 +19,7 @@
 package org.apache.hadoop.fs.aliyun.oss.v2.legency;
 
 import org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSFileSystemStore;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.BlockLogContext;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
@@ -72,7 +73,7 @@ public class AliyunOSSFileReaderTask implements Runnable {
         try {
             while (true) {
                 try (InputStream in = store.retrieve(
-                        key, null, readBuffer.getByteStart(), readBuffer.getByteEnd())) {
+                        key, null, readBuffer.getByteStart(), readBuffer.getByteEnd(), new BlockLogContext())) {
                     IOUtils.readFully(in, readBuffer.getBuffer(),
                             0, readBuffer.getBuffer().length);
                     readBuffer.setStatus(ReadBuffer.STATUS.SUCCESS);

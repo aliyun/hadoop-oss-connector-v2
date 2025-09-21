@@ -24,6 +24,8 @@ import org.apache.hadoop.fs.FSExceptionMessages;
 import org.apache.hadoop.fs.StreamCapabilities;
 
 import org.apache.hadoop.fs.aliyun.oss.v2.OssManager;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.ReadLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.StreamLogContext;
 import org.apache.hadoop.fs.statistics.IOStatisticsSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +34,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Objects.requireNonNull;
 
@@ -99,6 +102,8 @@ public abstract class RemoteInputStream
 
 
     private InputPolicy inputPolicy;
+
+    protected StreamLogContext logContext;
 
 
     public RemoteInputStream(
@@ -210,7 +215,7 @@ public abstract class RemoteInputStream
      * @return true if at least one such buffer is available for reading, false otherwise.
      * @throws IOException if there is an IO error during this operation.
      */
-    protected abstract boolean ensureCurrentBuffer() throws IOException;
+    protected abstract boolean ensureCurrentBuffer(int len, long loop, ReadLogContext readLogContext) throws IOException;
 
     @Override
     public int read() throws IOException {
@@ -221,7 +226,10 @@ public abstract class RemoteInputStream
             return -1;
         }
 
-        if (!ensureCurrentBuffer()) {
+        ReadLogContext readLogContext =  new ReadLogContext(logContext);
+        readLogContext.setOffset(-1);
+        readLogContext.setLen(1);
+        if (!ensureCurrentBuffer(1,-1L, readLogContext)) {
             return -1;
         }
 
@@ -269,7 +277,11 @@ public abstract class RemoteInputStream
             return -1;
         }
 
-        if (!ensureCurrentBuffer()) {
+        AtomicLong loop = new AtomicLong(0);
+        ReadLogContext readLogContext =  new ReadLogContext(logContext);
+        readLogContext.setOffset(offset);
+        readLogContext.setLen(len);
+        if (!ensureCurrentBuffer(len,loop.incrementAndGet(),readLogContext)) {
             return -1;
         }
 
@@ -277,7 +289,7 @@ public abstract class RemoteInputStream
         int numBytesRemaining = len;
 
         while (numBytesRemaining > 0) {
-            if (!ensureCurrentBuffer()) {
+            if (!ensureCurrentBuffer(numBytesRemaining,loop.incrementAndGet(),readLogContext)) {
                 break;
             }
 

@@ -58,6 +58,8 @@ public final class Constants {
     // Use a custom endpoint
     public static final String ENDPOINT_KEY = "fs.oss.endpoint";
     public static final String ACC_ENDPOINT_KEY = "fs.oss.acc.endpoint";
+    public static final String ACC_HIGH_CONCURRENCY_KEY = "fs.oss.acc.high-concurrency";
+    public static final int ACC_HIGH_CONCURRENCY_DEFAULT = -1;
 
     public static final String REGION = "fs.oss.region";
 
@@ -297,8 +299,6 @@ public final class Constants {
     public static final String CHANGE_DETECT_MODE_NONE = "none";
 
 
-
-
     public static final String INPUT_FADV_NORMAL = "normal";
 
     public static final String HADOOP_TMP_DIR = "hadoop.tmp.dir";
@@ -307,13 +307,16 @@ public final class Constants {
     public static final String PREFETCH_VERSION_DEFAULT = "v2";
 
     public static final String PREFETCH_BLOCK_SIZE_KEY = "fs.oss.prefetch.block.size";
-    public static final int PREFETCH_BLOCK_DEFAULT_SIZE = 8 * 1024 * 1024;
+    public static final int PREFETCH_BLOCK_DEFAULT_SIZE = 128 * 1024;
 
-    public static final String PREFETCH_MAX_BLOCKS_COUNT = "fs.oss.prefetch.max.blocks.count";
-    public static final int DEFAULT_PREFETCH_MAX_BLOCKS_COUNT = 4;
+    public static final String MERGE_MAX_POOL_SIZE = "fs.oss.max.merge.size";
+    public static final int DEFAULT_MERGE_MAX_POOL_SIZE = 32 * 1024 * 1024;
+
+    public static final String PREFETCH_MAX_DISK_BLOCKS_COUNT = "fs.oss.prefetch.max.disk.blocks.count";
+    public static final int DEFAULT_PREFETCH_MAX_DISK_BLOCKS_COUNT = 4;
 
     public static final String PREFETCH_BLOCK_COUNT_KEY = "fs.oss.prefetch.block.count";
-    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 8;
+    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 4;
 
     public static final String MAX_THREADS = "fs.oss.threads.max";
     public static final int DEFAULT_MAX_THREADS = 96;
@@ -326,12 +329,37 @@ public final class Constants {
     public static final String ASYNC_DRAIN_THRESHOLD = "fs.oss.input.async.drain.threshold";
     public static final int DEFAULT_ASYNC_DRAIN_THRESHOLD = 16000;
 
+    public static final String SMALL_FILE_THRESHOLD_KEY = "fs.oss.small.file.threshold";
+    public static final int SMALL_FILE_THRESHOLD_DEFAULT = 512 * 1024;
+
+    public static final String PREFETCH_NUM_AFTER_SEEK_KEY = "fs.oss.seek.prefetch";
+    public static final int PREFETCH_NUM_AFTER_SEEK_DEFAULT = 1;
+
+    public static final String PREFETCH_THRESHOLD_KEY = "fs.oss.prefetch.io.threshold";
+    public static final int PREFETCH_THRESHOLD_DEFAULT = 2 * 1024 * 1024;
+
+    public static final String BIG_IO_THRESHOLD_KEY = "fs.oss.prefetch.io.big.threshold";
+    public static final int BIG_IO_THRESHOLD_DEFAULT = 4 * 1024 * 1024;
+
+    public static final String BIG_IO_PREFETCH_SIZE_KEY = "fs.oss.prefetch.io.big.size";
+    public static final int BIG_IO_PREFETCH_SIZE_DEFAULT = 128 * 1024 * 1024;
+
+    public static final String OSS_MERGE_SIZE_KEY = "fs.oss.prefetch.io.merge.threshold";
+    public static final int OSS_MERGE_SIZE_DEFAULT = 4 * 1024 * 1024;
+
+    public static final String AMPLIFICATION_FACTOR_KEY = "fs.oss.prefetch.io.merge.amplification";
+    public static final int AMPLIFICATION_FACTOR_DEFAULT = 16;
+
     public static final String BUFFER_PREFETCH_DIR_KEY = "fs.oss.buffer.prefetch.dir";
-    public static final String DEFAULT_BUFFER_PREFETCH_DIR = "/tmp/hadoop_oss";
+//    public static final String DEFAULT_BUFFER_PREFETCH_DIR = "${env.LOCAL_DIRS:-${hadoop.tmp.dir}}/oss_prefetch";
 
 
     public static final String LOGGING_CLIENT = "fs.oss.logging.client";
     public static final boolean DEFAULT_LOGGING_CLIENT = false;
+
+    public static final String REMOTE_DEBUG = "fs.oss.remote.debug";
+    public static final boolean DEFAULT_REMOTE_DEBUG = false;
+
 
     public static final String LOGGING_CLIENT_LEVEL = "fs.oss.logging.level";
     public static final String DEFAULT_LOGGING_CLIENT_LEVEL = "none";

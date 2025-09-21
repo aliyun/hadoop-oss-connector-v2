@@ -19,13 +19,14 @@
 package org.apache.hadoop.fs.aliyun.oss.v2;
 
 import com.aliyun.sdk.service.oss2.OSSClient;
+import com.aliyun.sdk.service.oss2.OSSDualClient;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
 
 public interface OSSClientFactory {
 
-    OSSClient createOSSClient(Configuration Conf) throws IOException;
+    OSSDualClient createOSSClient(Configuration Conf) throws IOException;
 
-    OSSClient createAccOSSClient(Configuration conf) throws IOException;
+    OSSDualClient createAccOSSClient(Configuration conf) throws IOException;
 }

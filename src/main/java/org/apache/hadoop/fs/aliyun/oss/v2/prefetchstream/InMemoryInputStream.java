@@ -22,6 +22,9 @@ package org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream;
 import org.apache.hadoop.fs.aliyun.oss.v2.OssManager;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.OSSPerformanceStatistics;
 
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.BlockLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.ReadLogContext;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.StreamLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +36,10 @@ public class InMemoryInputStream extends RemoteInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(
       InMemoryInputStream.class);
 
+  // 1MB threshold
+  private static final long ONE_MB = 1024 * 1024;
+  private final StreamLogContext streamLogContext;
+
   private ByteBuffer buffer;
 
   public InMemoryInputStream(
@@ -43,12 +50,16 @@ public class InMemoryInputStream extends RemoteInputStream {
     super(context, objectAttributes, client);
     int fileSize = (int) objectAttributes.getLen();
     this.buffer = ByteBuffer.allocate(fileSize);
+    this.streamLogContext = new StreamLogContext();
+    streamLogContext.setType("inMem");
     LOG.debug("Created in-memory input stream for {} (size = {})",
         getName(), fileSize);
   }
 
   @Override
-  protected boolean ensureCurrentBuffer() throws IOException {
+  protected boolean ensureCurrentBuffer(int len, long loop, ReadLogContext readLogContext) throws IOException {
+    //print class path
+    LOG.debug("InMemoryInputStream ensureCurrentBuffer class path: {}", System.getProperty("java.class.path"));
     if (isClosed()) {
       return false;
     }
@@ -63,9 +74,9 @@ public class InMemoryInputStream extends RemoteInputStream {
       filePosition.setAbsolute(getNextReadPos());
     } else {
       // Read entire file into buffer.
-      buffer.clear();
+      ((java.nio.Buffer) buffer).clear();
       int numBytesRead =
-          getReader().read(buffer, 0, buffer.capacity(), getObjectAttributes());
+          getReader().read(buffer, 0, buffer.capacity(), getObjectAttributes(), new BlockLogContext(readLogContext));
       if (numBytesRead <= 0) {
         return false;
       }

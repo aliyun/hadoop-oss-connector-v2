@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Tests a live Aliyun OSS system.
  */
 public class TestAliyunOSSPerformanceFileSystemContract
-    extends FileSystemContractBaseTest {
+    extends TestFileSystemContractBase {
   public static final String TEST_FS_OSS_NAME = "test.fs.oss.name";
   private static Path testRootPath =
       new Path(AliyunOSSTestUtils.generateUniqueTestPath());
@@ -374,10 +374,15 @@ public class TestAliyunOSSPerformanceFileSystemContract
     }
   }
 
+  // For object storage, renaming a directory will fail if files have already been deleted,
+  // because rename is not an atomic operation. In this test, when there are few files,
+  // rename will succeed because it's fast. However, when there are many files, rename will fail.
+  // This behavior is unrelated to whether the files are empty or not, which differs from HDFS.
+
   @Test
   public void testRenameChangingDirShouldFail() throws Exception {
     testRenameDir(true, false, false);
-    testRenameDir(true, true, true);
+    testRenameDir(true, false, true);
   }
 
   @Test

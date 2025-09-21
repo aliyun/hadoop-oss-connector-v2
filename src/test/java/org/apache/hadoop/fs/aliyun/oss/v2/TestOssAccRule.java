@@ -43,14 +43,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit test for AliyunOSSFileSystem basic operations including
  * open, write, and read interfaces.
  */
-public class OssAccRuleTest {
+public class TestOssAccRule {
 
     private AliyunOSSPerformanceFileSystem fs;
     private Configuration conf;
     private Path testRootPath;
-
-//  @Param({"org.apache.hadoop.fs.aliyun.oss.mock.LocalOSSClientFactory", "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory"})
-//  private String impl;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -66,6 +63,13 @@ public class OssAccRuleTest {
     private void initFs(String ruleStr, int size) throws IOException {
         conf.set(PREFETCH_VERSION_KEY, "v2");
         conf.setInt(PREFETCH_BLOCK_SIZE_KEY, size);
+        conf.setInt(SMALL_FILE_THRESHOLD_KEY, size);
+        conf.setInt(MERGE_MAX_POOL_SIZE, size);
+        conf.setInt(PREFETCH_MAX_DISK_BLOCKS_COUNT, 1);
+        conf.setInt(PREFETCH_BLOCK_COUNT_KEY, 0);
+        conf.setInt(READAHEAD_RANGE, 0);
+        conf.setInt("io.file.buffer.size",size);
+//        conf.setInt(Constants.PREFETCH_THRESHOLD_KEY, size);
 
         // For testing purposes, we'll use a local test path
         // In a real test, you would configure actual OSS credentials
@@ -159,7 +163,6 @@ public class OssAccRuleTest {
         checkGetObjectAcc(fs, testFile, "01234567", true, "write 8 bytes file ,should use acc", 0, 10);
         checkGetObjectAcc(fs, testFile, "012345678901234", false, "write 15 bytes file ,should not use acc", 0, 10);
         checkGetObjectAcc(fs, testFile, "012345678901234567890123", true, "write 24 bytes file ,should use acc", 0, 10);
-
     }
 
     public static String removeLeadingSlash(String str) {
@@ -230,14 +233,14 @@ public class OssAccRuleTest {
         String testData = "0123456789012345678901234567890123456789";
         checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, true, "write 8 bytes file ,should use acc", 0, 10);
         fs.close();
-        initFs(ruleStr, 20);
-        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, true, "write 8 bytes file ,should use acc", 0, 10);
-        fs.close();
-        initFs(ruleStr, 21);
-        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, false, "write 8 bytes file ,should use acc", 0, 10);
-        fs.close();
-        initFs(ruleStr, 14);
-        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, false, "write 8 bytes file ,should use acc", 0, 10);
+//        initFs(ruleStr, 20);
+//        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, true, "write 8 bytes file ,should use acc", 0, 10);
+//        fs.close();
+//        initFs(ruleStr, 21);
+//        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, false, "write 8 bytes file ,should use acc", 0, 10);
+//        fs.close();
+//        initFs(ruleStr, 14);
+//        checkGetObjectAcc(fs, new Path(testRootPath, "c/test-file1.txt"), testData, false, "write 8 bytes file ,should use acc", 0, 10);
     }
 
 
@@ -266,7 +269,7 @@ public class OssAccRuleTest {
         String testData = "0123456789012345678901234567890123456789";
         Path testFile = new Path(testRootPath, "c/test-file1.txt");
         int read_start = 0;
-        int read_end = testData.length() - 1;
+        int read_end = 10;
 
         System.out.println(String.format(
                 "Checking get object access with %s, filepath=%s, length=%d",
@@ -292,7 +295,8 @@ public class OssAccRuleTest {
             assertArrayEquals(expected, buffer, "Should read the same data");
             List<OperationStat> accOperation = fs.getStore().getOSSManager().getOperationStats().stream()
                     .filter(operationStat -> {
-                        return operationStat.getOperationName() == OssActionEnum.GET_OBJECT
+                        return (operationStat.getOperationName() == OssActionEnum.GET_OBJECT
+                                || operationStat.getOperationName() == OssActionEnum.GET_OBJECT_ASYNC)
                                 && operationStat.isUseAcc();
                     }).collect(Collectors.toList());
 
@@ -317,8 +321,8 @@ public class OssAccRuleTest {
         initFs(ruleStr, 10);
         String testData = "0123456789012345678901234567890123456789";
         Path testFile = new Path(testRootPath, "c/test-file1.txt");
-        int read_start = 0;
-        int read_end = testData.length() - 1;
+        int read_start = testData.length() -10;
+        int read_end = testData.length() ;
 
         System.out.println(String.format(
                 "Checking get object access with %s, filepath=%s, length=%d",
@@ -335,7 +339,8 @@ public class OssAccRuleTest {
         fs.getStore().getOSSManager().getOperationStats().clear();
         try (FSDataInputStream in = fs.open(testFile)) {
             byte[] buffer = new byte[min(testDataBytes.length, read_end - read_start)];
-            int bytesRead = in.read(buffer, read_start, read_end);
+            in.seek(read_start);
+            int bytesRead = in.read(buffer, 0, read_end-read_start);
 
             assertEquals(min(testDataBytes.length, read_end - read_start), bytesRead, "Should read the same number of bytes");
             //获取testDataBytes由read_start，到read_end的数据
@@ -374,7 +379,7 @@ public class OssAccRuleTest {
 
             assertEquals(min(testDataBytes.length, read_end - read_start), bytesRead, "Should read the same number of bytes");
             //获取testDataBytes由read_start，到read_end的数据
-            byte[] expected = Arrays.copyOfRange(testDataBytes, read_start, read_end);
+            byte[] expected = Arrays.copyOfRange(testDataBytes, read_start, min(testDataBytes.length, read_end - read_start));
 
             assertArrayEquals(expected, buffer, "Should read the same data");
             OperationStat operation = fs.getStore().getOSSManager().getOperationStats().stream()

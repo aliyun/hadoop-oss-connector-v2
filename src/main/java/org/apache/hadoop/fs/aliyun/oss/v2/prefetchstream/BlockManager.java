@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream;
 
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.RemoteLogContext;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,18 +40,18 @@ public abstract class BlockManager implements Closeable {
         return blockData;
     }
 
-    public BufferData get(int blockNumber , ObjectAttributes objectAttributes) throws IOException {
+    public BufferData get(int blockNumber , ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException {
         checkNotNegative(blockNumber, "blockNumber");
 
         int size = blockData.getSize(blockNumber);
         ByteBuffer buffer = ByteBuffer.allocate(size);
         long startOffset = blockData.getStartOffset(blockNumber);
-        read(buffer, startOffset, size, objectAttributes);
+        read(buffer, startOffset, size, objectAttributes, remoteLogContext);
         buffer.flip();
         return new BufferData(blockNumber, buffer);
     }
 
-    public abstract int read(ByteBuffer buffer, long startOffset, int size, ObjectAttributes objectAttributes) throws IOException;
+    public abstract int read(ByteBuffer buffer, long startOffset, int size, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) throws IOException;
 
     public void release(BufferData data) {
         checkNotNull(data, "data");
@@ -57,7 +59,7 @@ public abstract class BlockManager implements Closeable {
         // Do nothing because we allocate a new buffer each time.
     }
 
-    public void requestPrefetch(int blockNumber, ObjectAttributes objectAttributes) {
+    public void requestPrefetch(int blockNumber, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext) {
         checkNotNegative(blockNumber, "blockNumber");
 
         // Do nothing because we do not support prefetches.
