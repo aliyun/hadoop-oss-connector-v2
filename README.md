@@ -11,6 +11,7 @@ Hadoop OSS Connector V2 is a Hadoop-compatible file system implementation that e
 - Compatible with standard Hadoop operations (list, create, read, write, delete, etc.)
 - Enhanced performance optimizations for big data workloads
 - Dual-domain support (OSS + Accelerator)
+- urrently, multiple buckets with different configurations are not supported. For now, configurations such as fs.oss.{bucket}.endpoint are not supported. This feature will be improved in the future.
 
 ## Architecture
 
@@ -296,7 +297,7 @@ Rules explanation:
     - TAIL access: requests at position [end-y, end]
     - SIZE access: requests with size range [minSize, maxSize]
 5. Operation matching (operations):
-    - Supports getObject and putObject operations
+    - Supports getObject operations only for now
 
 ## Development
 
