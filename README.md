@@ -1,406 +1,86 @@
-# Hadoop OSS Connector
+## 贡献
 
-Hadoop OSS Connector V2 is a Hadoop-compatible file system implementation that enables Hadoop applications to read and write data to and from Alibaba Cloud Object Storage Service (OSS). This connector provides seamless integration between Hadoop ecosystem and OSS with optimized performance.
+贡献方式与主分支相同。请确保在 shade 分支上进行与依赖管理和 shaded JAR 相关的改进。
 
-## Features
+## 许可证
 
-- Full Hadoop FileSystem interface implementation for OSS
-- High-performance data access with optimized I/O operations
-- Support for multipart upload and download
-- Native integration with Alibaba Cloud OSS service
-- Compatible with standard Hadoop operations (list, create, read, write, delete, etc.)
-- Enhanced performance optimizations for big data workloads
-- Dual-domain support (OSS + Accelerator)
+本项目采用 Apache License 2.0 许可证 - 详情请见 [LICENSE](LICENSE) 文件。
+## 依赖重定位
 
-## Architecture
+在 shade 过程中，以下包被重定位以避免冲突：
 
-The connector consists of several key components:
-
-1. **AliyunOSSPerformanceFileSystem**: Main file system implementation that extends Hadoop's FileSystem class
-2. **AliyunOSSFileSystemStore**: Core storage layer that interacts with OSS APIs
-3. **OssManager**: OSS client management and operation tracking
-4. **Constants**: Configuration constants for OSS filesystem
-
-## Prerequisites
-
-- Java 8 or higher
-- Maven 3.x
-- Access to Alibaba Cloud OSS service (AccessKey ID and AccessKey Secret required)
-
-## Installation
-
-### From Source
-
-```bash
-git clone <repository-url>
-cd hadoop-oss-connector
-mvn clean install
-```
+- `com.aliyun` -> `shaded.com.aliyun`
+- `org.apache.http` -> `shaded.org.apache.http`
+- 其他潜在冲突的第三方库
 
-### Maven Dependency
+这确保了即使 Hadoop 环境中有不同版本的相同库，连接器也能正常工作。
 
-Add the following dependency to your `pom.xml`:
-
-```xml
-<dependency>
-    <groupId>org.apache.hadoop</groupId>
-    <artifactId>hadoop-aliyun</artifactId>
-    <version>${version}</version>
-</dependency>
-```
-
-## Configuration
+## 注意事项
 
-To use the OSS connector, you need to configure the following properties in your Hadoop configuration:
-
-### Core Properties
-
-| Property | Description | Default Value |
-|---------|-------------|---------------|
-| `fs.oss.accessKeyId` | Your Alibaba Cloud AccessKey ID | None |
-| `fs.oss.accessKeySecret` | Your Alibaba Cloud AccessKey Secret | None |
-| `fs.oss.endpoint` | OSS endpoint (e.g., oss-cn-hangzhou.aliyuncs.com) | None |
-| `fs.oss.acc.endpoint` | OSS Accelerator endpoint (internal network only) | None |
-| `fs.oss.connection.maximum` | Number of simultaneous connections to OSS | 32 |
-| `fs.oss.connection.secure.enabled` | Connect to OSS over SSL | true |
-| `fs.oss.attempts.maximum` | Number of times to retry errors | 10 |
-| `fs.oss.connection.timeout` | Connection timeout in milliseconds | 200000 |
-| `fs.oss.paging.maximum` | Number of records to get while paging through a directory listing | 1000 |
-
-### Performance Tuning Properties
-
-| Property | Description | Default Value |
-|---------|-------------|---------------|
-| `fs.oss.multipart.upload.size` | Size of each multipart upload piece | 104857600 (100 MB) |
-| `fs.oss.multipart.upload.threshold` | Minimum size before starting a multipart upload | 20971520 (20 MB) |
-| `fs.oss.multipart.download.size` | Size of each multipart download piece | 524288 (512 KB) |
-| `fs.oss.multipart.download.threads` | Number of threads for multipart download | 10 |
-| `fs.oss.max.total.tasks` | Maximum total tasks | 128 |
-| `fs.oss.fast.upload.buffer` | Buffer type for fast upload (disk, array, bytebuffer) | disk |
-
-### Prefetch Properties
-
-The connector supports advanced prefetching capabilities with the following configuration options:
-
-| Property | Description | Default Value |
-|---------|-------------|---------------|
-| `fs.oss.prefetch.version` | Prefetch version (v1 or v2) | v2 |
-| `fs.oss.prefetch.block.size` | Size of each prefetch block | 8388608 (8 MB) |
-| `fs.oss.prefetch.block.count` | Number of blocks to prefetch per stream | 8 |
-| `fs.oss.prefetch.max.blocks.count` | Maximum blocks to cache per stream | 16 |
-| `fs.oss.input.async.drain.threshold` | Async drain threshold | 16000 |
-| `fs.oss.threads.max` | Maximum threads for download and prefetch | 16 |
+1. **文件大小**: Shaded JAR 文件比普通 JAR 大得多，因为它包含了所有依赖项。
 
-### Accelerator Domain Properties
+2. **调试**: 由于类被重定位，调试时可能需要考虑这一点。
 
-The connector supports dual-domain configuration with OSS and Accelerator endpoints:
+3. **兼容性**: 虽然 shade 版本解决了依赖冲突问题，但应确保它与您的 Hadoop 版本兼容。
 
-| Property | Description | Default Value |
-|---------|-------------|---------------|
-| `fs.oss.acc.endpoint` | Accelerator endpoint URL | None |
-| `fs.oss.acc.rules` | Acceleration rules configuration | None |
-
-### Configuration Examples
+## 故障排除
 
-#### In configuration XML:
+### ClassNotFoundException
 
-```xml
-<configuration>
-    <property>
-        <name>fs.oss.accessKeyId</name>
-        <value>YOUR_ACCESS_KEY_ID</value>
-    </property>
-    <property>
-        <name>fs.oss.accessKeySecret</name>
-        <value>YOUR_ACCESS_KEY_SECRET</value>
-    </property>
-    <property>
-        <name>fs.oss.endpoint</name>
-        <value>oss-cn-hangzhou.aliyuncs.com</value>
-    </property>
-</configuration>
-```
+如果遇到 `ClassNotFoundException`，请确保：
+1. Shaded JAR 文件已正确部署到类路径
+2. Hadoop 进程已重启以加载新 JAR
 
-#### Programmatically:
+### 版本冲突
 
-```java
-Configuration conf = new Configuration();
-conf.set("fs.oss.accessKeyId", "YOUR_ACCESS_KEY_ID");
-conf.set("fs.oss.accessKeySecret", "YOUR_ACCESS_KEY_SECRET");
-conf.set("fs.oss.endpoint", "oss-cn-hangzhou.aliyuncs.com");
-```
+如果仍然遇到版本冲突：
+1. 检查是否还有其他版本的 JAR 在类路径中
+2. 确保使用的是 shade 版本而不是标准版本
 
-## Usage
+## 构建配置
 
-### URI Format
+Shade 构建使用 Maven Shade Plugin，配置如下：
 
-The URI format for OSS is: `oss://bucket/path/to/file`
+### 配置
 
-Example:
-```java
-FileSystem fs = FileSystem.get(URI.create("oss://my-bucket/"), conf);
-Path path = new Path("oss://my-bucket/my-file.txt");
-FSDataInputStream in = fs.open(path);
-```
+配置与标准版本相同。请参考主 README 中的配置部分。
 
-### Basic Operations
+### 使用示例
 
-```java
-// Initialize file system
-Configuration conf = new Configuration();
-FileSystem fs = FileSystem.get(URI.create("oss://my-bucket/"), conf);
+这将生成一个包含所有依赖项的 JAR 文件，通常命名为 `hadoop-oss-connector-v2-shaded-{version}.jar`。
 
-// Create a file
-FSDataOutputStream out = fs.create(new Path("oss://my-bucket/test.txt"));
-out.write("Hello OSS!".getBytes());
-out.close();
+### 构建参数
 
-// Read a file
-FSDataInputStream in = fs.open(new Path("oss://my-bucket/test.txt"));
-byte[] buffer = new byte[1024];
-int bytesRead = in.read(buffer);
-in.close();
-
-// List files
-FileStatus[] files = fs.listStatus(new Path("oss://my-bucket/"));
-for (FileStatus file : files) {
-    System.out.println(file.getPath());
-}
-
-// Delete a file
-fs.delete(new Path("oss://my-bucket/test.txt"), false);
-
-// Check if file exists
-boolean exists = fs.exists(new Path("oss://my-bucket/some-file.txt"));
-```
-
-### Working with Directories
-
-```java
-// Create directory
-fs.mkdirs(new Path("oss://my-bucket/my-directory/"));
-
-// List directory contents
-FileStatus[] files = fs.listStatus(new Path("oss://my-bucket/my-directory/"));
-
-// Delete directory recursively
-fs.delete(new Path("oss://my-bucket/my-directory/"), true);
-```
-
-## Advanced Features
-
-### Multipart Upload
-
-The connector automatically uses multipart upload for large files based on the configured threshold. You can tune this behavior with:
-
-```properties
-fs.oss.multipart.upload.threshold=104857600  # 100MB
-fs.oss.multipart.upload.part.size=16777216   # 16MB
-```
-
-### Retry Mechanism
-
-Failed operations are automatically retried based on configuration:
-
-```properties
-fs.oss.attempts.maximum=5
-fs.oss.connection.timeout=60000  # 60 seconds
-```
-
-### Buffer Management
-
-For multipart operations, local buffer directories are used:
-
-```properties
-fs.oss.buffer.dir=/tmp/hadoop-oss,/data/tmp
-```
-
-### Prefetch
-
-The connector supports advanced prefetching capabilities  with the following features:
-
-1. For large files, use local disk cache
-2. For small files, use memory cache (not yet implemented)
-3. Split files into blocks and download them concurrently, with configurable maximum concurrency and block size
-4. Optimized for random I/O patterns 
-5. Immediately prefetch one block after seek
-6. When an HTTP stream is about to complete, the data is read completely instead of aborting to reuse the HTTP connection
-7. Single stream prefetches up to 8 blocks, with a global FS default of 96 blocks
-8. If reading a cached block takes more than 5s (non-configurable), prefetching is stopped to avoid performance degradation
-
-To enable Prefetch:
-
-```xml
-<property>
-    <name>fs.oss.prefetch.version</name>
-    <value>v2</value>
-</property>
-```
-
-### Dual-Domain Support (OSS + Accelerator)
-
-The connector supports dual-domain configuration with OSS and Accelerator endpoints for optimized performance:
-
-1. Accelerator domain configuration (internal network only):
-```xml
-<property>
-    <name>fs.oss.acc.endpoint</name>
-    <value>https://oss-cn-hangzhou-acc.aliyuncs.com</value>
-</property>
-```
-
-2. Acceleration rules configuration:
-```xml
-<property>
-    <name>fs.oss.acc.rules</name>
-    <value>
-        &lt;rules&gt;
-            &lt;rule&gt;
-                &lt;keyPrefixes&gt;
-                    &lt;keyPrefix&gt;root-path/test&lt;/keyPrefix&gt;
-                    &lt;keyPrefix&gt;b/&lt;/keyPrefix&gt;
-                &lt;/keyPrefixes&gt;
-                &lt;keySuffixes&gt;
-                    &lt;keySuffix&gt;.txt&lt;/keySuffix&gt;
-                    &lt;keySuffix&gt;.png&lt;/keySuffix&gt;
-                &lt;/keySuffixes&gt;
-                &lt;sizeRanges&gt;
-                    &lt;range&gt;
-                        &lt;minSize&gt;0&lt;/minSize&gt;
-                        &lt;maxSize&gt;1048576&lt;/maxSize&gt;
-                    &lt;/range&gt;
-                &lt;/sizeRanges&gt;
-                &lt;operations&gt;
-                    &lt;operation&gt;getObject&lt;/operation&gt;
-                &lt;/operations&gt;
-            &lt;/rule&gt;
-        &lt;/rules&gt;
-    </value>
-</property>
-```
-
-Rules explanation:
-1. Prefix matching (keyPrefixes):
-    - Multiple prefixes allowed
-    - OR relationship between multiple prefixes
-2. Suffix matching (keySuffixes):
-    - Multiple suffixes allowed
-    - OR relationship between multiple suffixes
-3. File size matching (sizeRanges):
-    - Multiple ranges can be set, each representing a file size range
-4. IO size matching:
-    - Head access: requests at position [start, start+x]
-    - Tail access: requests at position [end-y, end]
-5. Operation matching:
-    - Currently only supports getObject
-
-## Development
-
-### Project Structure
-
-```
-hadoop-oss/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── org/apache/hadoop/fs/aliyun/oss/v2/
-│   │   │       ├── AliyunOSSFileSystemStore.java
-│   │   │       ├── AliyunOSSPerformanceFileSystem.java
-│   │   │       ├── Constants.java
-│   │   │       ├── OssManager.java
-│   │   │       └── model/
-│   │   └── resources/
-│   └── test/
-│       ├── java/
-│       └── resources/
-├── pom.xml
-└── README.md
-```
-
-### Building
-
-To build the project:
-
-```bash
-mvn clean package
-```
-
-### Testing
-
-To run tests:
-
-```bash
-mvn test
-```
-
-Note: Tests require valid OSS credentials configured in `src/test/resources/auth-keys.xml`.
-
-Example auth-keys.xml:
-```xml
-<configuration>
-  <property>
-    <name>fs.oss.accessKeyId</name>
-    <value>YOUR_ACCESS_KEY_ID</value>
-  </property>
-  <property>
-    <name>fs.oss.accessKeySecret</name>
-    <value>YOUR_ACCESS_KEY_SECRET</value>
-  </property>
-  <property>
-    <name>test.fs.oss.name</name>
-    <value>oss://your-test-bucket/</value>
-  </property>
-</configuration>
-```
-
-## Performance Considerations
-
-1. **Block Size**: Adjust `fs.oss.block.size` based on your workload. Larger blocks are better for sequential access.
-
-2. **Connection Management**: Tune `fs.oss.connection.maximum` based on your cluster size and concurrency requirements.
-
-3. **Multipart Upload**: For large files, ensure multipart upload settings are optimized for your network conditions.
-
-4. **Buffer Directories**: Use fast local storage for `fs.oss.buffer.dir` to improve multipart operation performance.
-
-5. **Prefetch**: Enable Prefetch for improved read performance on large files with sequential access patterns.
-
-6. **Accelerator Domain**: Configure accelerator domain and rules for improved performance on specific file types or access patterns.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Authentication Errors**: Verify your AccessKey ID and Secret are correct and have appropriate permissions.
-
-2. **Connection Timeouts**: Increase `fs.oss.connection.timeout` if you're experiencing network issues.
-
-3. **Performance Issues**: Check your block size and connection settings.
-
-### Logging
-
-Enable debug logging for troubleshooting:
-
-```properties
-log4j.logger.org.apache.hadoop.fs.aliyun.oss=DEBUG
-```
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-Please ensure your code follows the existing style and includes appropriate tests.
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For issues and questions, please create an issue on the GitHub repository or contact the maintainers.
+| 参数 | 描述 |
+|------|------|
+| `-Pshade` | 激活 shade 构建配置文件 |
+| `-DskipTests` | 跳过测试以加快构建过程 |
+
+## 使用
+
+### 部署
+
+将生成的 shaded JAR 文件复制到 Hadoop 集群的类路径中：
+
+# Hadoop OSS Connector - Shade Branch
+
+Hadoop OSS Connector V2 Shade 是 Hadoop OSS Connector 的一个特殊构建版本，它将所有依赖项打包到一个单一的"uber" JAR文件中，以避免类路径冲突并简化部署。
+
+## 目的
+
+shade 分支的主要目的是创建一个独立的 JAR 文件，其中包含连接器及其所有依赖项，从而：
+- 避免与 Hadoop 集群中已有的库发生版本冲突
+- 简化部署过程，只需要一个 JAR 文件
+- 确保在各种 Hadoop 发行版中的一致性
+
+## 特性
+
+- 包含所有必需的依赖项（如 Alibaba Cloud SDK）
+- 重定位冲突的依赖项以避免类路径问题
+- 与标准 Hadoop OSS Connector 功能完全相同
+- 更容易集成到不同的 Hadoop 环境中
+
+## 构建
+
+### 构建 Shade JAR
+

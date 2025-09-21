@@ -18,3 +18,4 @@ pom.xml.versionsBackup
 hs_err_pid*
 dep
 src/test/resources/auth-keys.xml
+target/*
