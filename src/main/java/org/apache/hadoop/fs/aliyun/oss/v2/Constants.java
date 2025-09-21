@@ -316,7 +316,7 @@ public final class Constants {
     public static final int DEFAULT_PREFETCH_MAX_DISK_BLOCKS_COUNT = 4;
 
     public static final String PREFETCH_BLOCK_COUNT_KEY = "fs.oss.prefetch.block.count";
-    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 4;
+    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 8;
 
     public static final String MAX_THREADS = "fs.oss.threads.max";
     public static final int DEFAULT_MAX_THREADS = 96;
