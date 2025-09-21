@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.apache.hadoop</groupId>
+    <artifactId>hadoop-aliyun</artifactId>
+    <version>3.3.5-2.0.25-alpha-shade</version>
+    <packaging>jar</packaging>
+
+    <name>Apache Hadoop Alibaba Cloud OSS Support</name>
+    <description>
+        This module contains code to support integration with Alibaba Cloud OSS.
+    </description>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-aliyun</artifactId>
+            <version>3.3.5-2.0.23-snapshot</version>
+            <optional>false</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <attach>true</attach>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.5</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+                <configuration>
+                    <includes>
+                        <include>**/*</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <artifactSet>
+                        <includes>
+                            <include>com.aliyun:alibabacloud-oss-v2</include>
+                            <!--                            <include>org.apache.httpcomponents:*</include>-->
+                            <include>org.apache.httpcomponents.*:*</include>
+                            <!--                            <include>org.apache.httpcomponents.core5:*</include>-->
+                            <!--                            <include>org.apache.commons:commons-lang3</include>-->
+                            <include>com.fasterxml.jackson.*:*</include>
+
+                            <!--                            <include>com.fasterxml.jackson.datatype:*</include>-->
+                            <!--                            <include>com.fasterxml.jackson.dataformat:*</include>-->
+                        </includes>
+                    </artifactSet>
+                    <relocations>
+                        <relocation>
+                            <pattern>org.apache.http</pattern>
+                            <shadedPattern>com.aliyun.oss.shade.org.apache.http</shadedPattern>
+                        </relocation>
+                        <!--                        <relocation>-->
+                        <!--                            <pattern>org.apache.commons</pattern>-->
+                        <!--                            <shadedPattern>com.aliyun.oss.shade.org.apache.commons</shadedPattern>-->
+                        <!--                        </relocation>-->
+
+
+                        <relocation>
+                            <pattern>com.fasterxml.jackson</pattern>
+                            <shadedPattern>com.aliyun.oss.shade.com.fasterxml.jackson</shadedPattern>
+                        </relocation>
+
+                        <relocation>
+                            <pattern>org.apache.hc</pattern>
+                            <shadedPattern>com.aliyun.oss.shade.org.apache.hc</shadedPattern>
+                        </relocation>
+
+                        <relocation>
+                            <pattern>com.aliyun.sdk.service.oss2</pattern>
+                            <shadedPattern>com.aliyun.oss.shade.com.aliyun.sdk.service.oss2</shadedPattern>
+                        </relocation>
+
+
+
+
+                    </relocations>
+                    <shadedArtifactAttached>false</shadedArtifactAttached>
+                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml
+                    </dependencyReducedPomLocation>
+                    <createSourcesJar>true</createSourcesJar>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                                <exclude>META-INF/*.SF</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <distributionManagement>
+        <repository>
+            <id>releases</id>
+            <url>http://repo.alibaba-inc.com/mvn/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <url>http://repo.alibaba-inc.com/mvn/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+</project>
