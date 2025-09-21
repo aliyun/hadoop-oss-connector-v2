@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.apache.hadoop</groupId>
-    <artifactId>hadoop-aliyun</artifactId>
-    <version>3.3.5-2.0.24-alpha</version>
+    <groupId>com.aliyun</groupId>
+    <artifactId>hadoop-oss</artifactId>
+    <version>3.3.5-2.0.25-alpha</version>
     <packaging>jar</packaging>
 
     <name>Apache Hadoop Alibaba Cloud OSS Support</name>

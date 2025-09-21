@@ -43,8 +43,8 @@ Add the following dependency to your `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>org.apache.hadoop</groupId>
-    <artifactId>hadoop-aliyun</artifactId>
+    <groupId>com.aliyun</groupId>
+    <artifactId>hadoop-oss</artifactId>
     <version>${version}</version>
 </dependency>
 ```
@@ -278,6 +278,7 @@ The connector supports dual-domain configuration with OSS and Accelerator endpoi
     </value>
 </property>
 ```
+Add a prompt for the configuration of Acceleration rules: The <rules> in <value> need to be escaped as &lt; for < and &gt; for > in XML.
 
 Rules explanation:
 1. Prefix matching (keyPrefixes):
@@ -288,11 +289,12 @@ Rules explanation:
     - OR relationship between multiple suffixes
 3. File size matching (sizeRanges):
     - Multiple ranges can be set, each representing a file size range
-4. IO size matching:
-    - Head access: requests at position [start, start+x]
-    - Tail access: requests at position [end-y, end]
-5. Operation matching:
-    - Currently only supports getObject
+4. IO size matching (IOSizeRanges):
+    - HEAD access: requests at position [start, start+x]
+    - TAIL access: requests at position [end-y, end]
+    - SIZE access: requests with size range [minSize, maxSize]
+5. Operation matching (operations):
+    - Supports getObject and putObject operations
 
 ## Development
 
