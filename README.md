@@ -85,11 +85,13 @@ The connector supports advanced prefetching capabilities with the following conf
 | Property | Description | Default Value |
 |---------|-------------|---------------|
 | `fs.oss.prefetch.version` | Prefetch version (v1 or v2) | v2 |
-| `fs.oss.prefetch.block.size` | Size of each prefetch block | 8388608 (8 MB) |
+| `fs.oss.prefetch.block.size` | Size of each prefetch block | 131072 (128 KB) |
 | `fs.oss.prefetch.block.count` | Number of blocks to prefetch per stream | 8 |
-| `fs.oss.prefetch.max.blocks.count` | Maximum blocks to cache per stream | 16 |
-| `fs.oss.input.async.drain.threshold` | Async drain threshold | 16000 |
-| `fs.oss.threads.max` | Maximum threads for download and prefetch | 16 |
+| `fs.oss.prefetch.max.disk.blocks.count` | Maximum blocks to cache per stream | 16 |
+| `fs.oss.small.file.threshold` | Threshold for small files to use memory cache | 524288 (512 KB) |
+| `fs.oss.prefetch.io.threshold` | I/O threshold to enable prefetch capability | 2097152 (2 MB) |
+
+Prefetch will only be enabled when `fs.oss.prefetch.block.size`, `io.file.buffer.size` or the `bufferSize` parameter of `fs.open(bufferSize)` is greater than the value of `fs.oss.prefetch.io.threshold`.
 
 ### Accelerator Domain Properties
 
