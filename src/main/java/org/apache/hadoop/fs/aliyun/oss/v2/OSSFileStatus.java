@@ -21,7 +21,7 @@ package org.apache.hadoop.fs.aliyun.oss.v2;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.aliyun.oss.v2.performance.AliyunOSSDirEmptyFlag;
+import org.apache.hadoop.fs.aliyun.oss.v2.model.AliyunOSSDirEmptyFlag;
 
 /**
  * This class is used by listStatus for oss files.

@@ -18,13 +18,10 @@
 
 package org.apache.hadoop.fs.aliyun.oss.v2;
 
-import com.aliyun.sdk.service.oss2.ClientConfiguration;
-import com.aliyun.sdk.service.oss2.DefaultOSSClient;
-import com.aliyun.sdk.service.oss2.OSSClient;
+import com.aliyun.sdk.service.oss2.*;
 import com.aliyun.sdk.service.oss2.credentials.CredentialsProvider;
 import com.aliyun.sdk.service.oss2.transport.HttpClientOptions;
-import com.aliyun.sdk.service.oss2.transport.apache5client.Apache5HttpClient;
-import com.aliyun.sdk.service.oss2.transport.apache5client.Apache5HttpClientBuilder;
+import com.aliyun.sdk.service.oss2.transport.apache5client.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.aliyun.oss.v2.legency.AliyunOSSUtils;
@@ -45,11 +42,11 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
             LoggerFactory.getLogger(DefaultOSSClientFactory.class);
 
     @Override
-    public OSSClient createOSSClient(Configuration conf) throws IOException {
+    public OSSDualClient createOSSClient(Configuration conf) throws IOException {
 
         ClientConfiguration clientConf = intiConfig(conf);
         try {
-            OSSClient client = new DefaultOSSClient(clientConf);
+            OSSDualClient client = new DefaultOSSDualClient(clientConf);
             return client;
 
         } catch (Exception e) {
@@ -59,7 +56,7 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
     }
 
     @Override
-    public OSSClient createAccOSSClient(Configuration conf) throws IOException {
+    public OSSDualClient createAccOSSClient(Configuration conf) throws IOException {
         ClientConfiguration clientConf = intiConfig(conf);
         String accEndpoint = conf.getTrimmed(ACC_ENDPOINT_KEY, "");
         if (accEndpoint.isEmpty()) {
@@ -68,7 +65,7 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
 
         clientConf = clientConf.toBuilder().endpoint(accEndpoint).build();
         try {
-            OSSClient accClient = new DefaultOSSClient(clientConf);
+            OSSDualClient accClient = new DefaultOSSDualClient(clientConf);
             return accClient;
 
         } catch (Exception e) {
@@ -78,8 +75,7 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
     }
 
 
-    ClientConfiguration intiConfig(Configuration conf) throws IOException {
-
+    Apache5HttpClient  createHttpClient(Configuration conf) throws IOException {
         HttpClientOptions httpOptions = HttpClientOptions.custom()
                 .readWriteTimeout(Duration.ofDays(conf.getInt(SOCKET_TIMEOUT_KEY,
                         SOCKET_TIMEOUT_DEFAULT)))
@@ -91,11 +87,42 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
                 .maxConnections(conf.getInt(MAXIMUM_CONNECTIONS_KEY,
                         MAXIMUM_CONNECTIONS_DEFAULT)).
                 build();
+        return  httpClient;
+    }
+
+    Apache5AsyncHttpClient  createHttpAsyncClient(Configuration conf) throws IOException {
+        HttpClientOptions httpOptions = HttpClientOptions.custom()
+                .readWriteTimeout(Duration.ofDays(conf.getInt(SOCKET_TIMEOUT_KEY,
+                        SOCKET_TIMEOUT_DEFAULT)))
+                .connectTimeout(Duration.ofDays(conf.getLong(ESTABLISH_TIMEOUT_KEY,
+                        ESTABLISH_TIMEOUT_DEFAULT)))
+                .build();
+        Apache5AsyncHttpClient httpAsyncClient = Apache5AsyncHttpClientBuilder.create()
+                .options(httpOptions)
+                .maxConnections(conf.getInt(MAXIMUM_CONNECTIONS_KEY,
+                        MAXIMUM_CONNECTIONS_DEFAULT)).
+                build();
+        return  httpAsyncClient;
+    }
+
+
+
+    ClientConfiguration intiConfig(Configuration conf) throws IOException {
+
+        Apache5HttpClient httpSyncClient = createHttpClient(conf);
+        Apache5AsyncHttpClient httpAsyncClient = createHttpAsyncClient(conf);
+        Apache5MixedHttpClient httpClient = new Apache5MixedHttpClient(httpSyncClient, httpAsyncClient);
 
         CredentialsProvider provider =
                 AliyunOSSUtils.getCredentialsProvider(conf);
 
         boolean enabledSSL = conf.getBoolean(SECURE_CONNECTIONS_KEY, SECURE_CONNECTIONS_DEFAULT);
+        //getpackage version from pom
+
+        String version = this.getClass().getPackage().getImplementationVersion();
+        String useragent = conf.get(USER_AGENT_PREFIX, USER_AGENT_PREFIX_DEFAULT)
+                + ", Hadoop/" + VersionInfo.getVersion() + ", Connector/" + (version != null ? version : "unknown-debug03");
+
         ClientConfiguration clientConf = ClientConfiguration.newBuilder()
                 .httpClient(httpClient)
                 .disableSsl(!enabledSSL)
@@ -105,7 +132,7 @@ public class DefaultOSSClientFactory extends Configured implements OSSClientFact
                 .enabledRedirect(conf.getBoolean(REDIRECT_ENABLE_KEY, REDIRECT_ENABLE_DEFAULT))
                 .retryMaxAttempts(conf.getInt(MAX_ERROR_RETRIES_KEY, MAX_ERROR_RETRIES_DEFAULT))
                 .connectTimeout(Duration.ofMillis(conf.getInt(ESTABLISH_TIMEOUT_KEY, ESTABLISH_TIMEOUT_DEFAULT)))
-                .userAgent(conf.get(USER_AGENT_PREFIX, USER_AGENT_PREFIX_DEFAULT) + ", Hadoop/" + VersionInfo.getVersion())
+                .userAgent(useragent)
                 .build();
 
 

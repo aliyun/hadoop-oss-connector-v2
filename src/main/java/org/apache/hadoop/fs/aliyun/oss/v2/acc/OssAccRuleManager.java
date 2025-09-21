@@ -33,7 +33,7 @@ import java.util.List;
 
 public class OssAccRuleManager {
     private List<OssAccRule> rules;
-    public static final Logger LOG = LoggerFactory.getLogger(AliyunOSSInputStream.class);
+    public static final Logger LOG = LoggerFactory.getLogger(OssAccRuleManager.class);
 
     public OssAccRuleManager(String content) {
         LOG.debug("OssAccRuleManager: {}", content);

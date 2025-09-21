@@ -110,7 +110,7 @@ public class BufferPool implements Closeable {
             return null;
         }
 
-        buffer.clear();
+        ((java.nio.Buffer) buffer).clear();
         data = new BufferData(blockNumber, buffer.duplicate());
 
         synchronized (allocated) {
@@ -164,7 +164,7 @@ public class BufferPool implements Closeable {
             if (buffer == null) {
                 return;
             }
-            buffer.clear();
+            ((java.nio.Buffer) buffer).clear();
             pool.release(buffer);
             allocated.remove(data);
         }

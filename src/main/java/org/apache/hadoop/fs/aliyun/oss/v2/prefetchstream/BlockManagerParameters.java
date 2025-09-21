@@ -34,8 +34,10 @@ public final class BlockManagerParameters {
 
     private LocalDirAllocator localDirAllocator;
 
-    private int maxBlocksCount;
+    private int maxDiskBlocksCount;
     private OSSPerformanceStatistics statistics;
+
+    private String streamUuid;
 
     public ExecutorServiceFuturePool getFuturePool() {
         return futurePool;
@@ -44,6 +46,11 @@ public final class BlockManagerParameters {
     public PrefetchBlockData getBlockData() {
         return blockData;
     }
+
+    public String getStreamUuid() {
+         return streamUuid;
+    }
+
 
     public int getBufferPoolSize() {
         return bufferPoolSize;
@@ -57,8 +64,8 @@ public final class BlockManagerParameters {
         return localDirAllocator;
     }
 
-    public int getMaxBlocksCount() {
-        return maxBlocksCount;
+    public int getMaxDiskBlocksCount() {
+        return maxDiskBlocksCount;
     }
 
     public BlockManagerParameters withFuturePool(
@@ -91,9 +98,9 @@ public final class BlockManagerParameters {
         return this;
     }
 
-    public BlockManagerParameters withMaxBlocksCount(
+    public BlockManagerParameters withMaxDiskBlocksCount(
             final int blocksCount) {
-        this.maxBlocksCount = blocksCount;
+        this.maxDiskBlocksCount = blocksCount;
         return this;
     }
 
@@ -102,5 +109,9 @@ public final class BlockManagerParameters {
         return this;
     }
 
+    public BlockManagerParameters withStreamUuid(String uuid) {
+        this.streamUuid = uuid;
+        return this;
+    }
 }
 

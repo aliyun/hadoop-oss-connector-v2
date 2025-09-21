@@ -41,12 +41,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * This test evaluates the optimization effects of AliyunOSSPerformanceFileSystem by comparing
  * the number of OSS operations for various file system operations.
  */
-public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
+public class TestFileSystemMetaOperation {
 
     private Configuration conf;
     private Path testRootPath;
-//    private org.apache.hadoop.fs.aliyun.oss.PerformanceStore performanceStore;
-
 
     AliyunOSSFileSystemStore store;
     OssManager ossManager;
@@ -107,7 +105,7 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testCreateFile(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -167,7 +165,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testCreateFileWhenExists(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -229,7 +228,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testCreateFileWhenExistsWithPerformance(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -295,7 +295,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testCreateFileWhenDirectoryExists(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -340,7 +341,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testOpenFile(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -401,8 +403,10 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            
+
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testRenameFile(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -481,9 +485,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem"
-           ,
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testRenameDirectory(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -645,7 +648,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testDeleteFile(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -688,8 +692,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testDeleteDirectory(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -758,8 +762,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testListStatus(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -838,8 +842,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testMkdirs(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);
@@ -895,8 +899,8 @@ public class AliyunOSSPerformanceFileSystemPerformanceComparisonTest {
      */
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.performance.AliyunOSSPerformanceFileSystem",
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory,org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
+
     })
     public void testGetFileStatus(String ossClientImpl, String fileSystemImpl) throws IOException {
         initFs(ossClientImpl, fileSystemImpl);

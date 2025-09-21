@@ -40,6 +40,7 @@ public final class AliyunOSSTestUtils {
     public static AliyunOSSPerformanceFileSystem createTestFileSystem(Configuration conf)
             throws IOException {
         AliyunOSSPerformanceFileSystem ossfs = new AliyunOSSPerformanceFileSystem();
+
         ossfs.initialize(getURI(conf), conf);
         return ossfs;
     }

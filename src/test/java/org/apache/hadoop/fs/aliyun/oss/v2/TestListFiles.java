@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit test for AliyunOSSFileSystem basic operations including
  * open, write, and read interfaces.
  */
-public class PerformanceLsTest {
+public class TestListFiles {
 
     private FileSystem fs;
     private Configuration conf;
@@ -87,7 +87,7 @@ public class PerformanceLsTest {
 
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testLisAFile(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -123,7 +123,7 @@ public class PerformanceLsTest {
 
     @ParameterizedTest
     @CsvSource({
-            "org.apache.hadoop.fs.aliyun.oss.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.AliyunOSSPerformanceFileSystem"
+            "org.apache.hadoop.fs.aliyun.oss.v2.DefaultOSSClientFactory, org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem"
     })
     public void testLisADir(String ossClientImpl, String FileSystemImpl) throws IOException {
         initFs(ossClientImpl, FileSystemImpl);
@@ -151,11 +151,9 @@ public class PerformanceLsTest {
 
         // Verify file exists
         assertTrue(fs.exists(testFile), "Test file should exist");
-//        assertTrue(fs.exists(testFile2), "Test file should exist");
 
 
         FileStatus[] res = fs.listStatus(testRootPath);
-//        FileStatus[] res = fs.listStatus(new Path("/"));
 
         //print res size
         System.out.println("-------- res size:" + res.length);
@@ -171,7 +169,6 @@ public class PerformanceLsTest {
         assertTrue(res[1].isDirectory(), "Test file should be a file");
         assertEquals(conf.get("test.fs.oss.name") + dir1.toString(), res[1].getPath().toString(), "Test file should have the right path");
         assertEquals(0, res[1].getLen(), "Test file should have the right length");
-
     }
 
 

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.fs.aliyun.oss.v2.performance;
+package org.apache.hadoop.fs.aliyun.oss.v2.model;
 
 import java.util.EnumSet;
 import java.util.Set;

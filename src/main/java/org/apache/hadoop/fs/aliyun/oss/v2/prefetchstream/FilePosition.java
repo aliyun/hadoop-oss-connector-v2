@@ -187,4 +187,8 @@ public final class FilePosition {
   private void throwIfInvalidBuffer() {
     checkState(buffer != null, "'buffer' must not be null");
   }
+
+  public PrefetchBlockData getBlockData() {
+      return this.blockData;
+  }
 }

@@ -22,6 +22,7 @@ package org.apache.hadoop.fs.aliyun.oss.v2;
  */
 public enum OssActionEnum {
     GET_OBJECT("getObject"),
+    GET_OBJECT_ASYNC("getObjectAsync"),
     PUT_OBJECT("putObject"),
     LIST_V2("listObjectsV2"),
     DELETE("deleteObject"),

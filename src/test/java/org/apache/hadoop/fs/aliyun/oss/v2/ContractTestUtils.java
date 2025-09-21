@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * Utilities used across test cases.
  */
 public class ContractTestUtils {
-
   private static final Logger LOG =
       LoggerFactory.getLogger(ContractTestUtils.class);
 

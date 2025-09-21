@@ -18,7 +18,8 @@
 package org.apache.hadoop.fs.aliyun.oss.v2;
 
 
-import com.aliyun.sdk.service.oss2.OSSClient;
+import com.aliyun.sdk.service.oss2.OSSDualClient;
+import com.aliyun.sdk.service.oss2.OperationOptions;
 import com.aliyun.sdk.service.oss2.exceptions.ServiceException;
 import com.aliyun.sdk.service.oss2.models.*;
 import com.aliyun.sdk.service.oss2.transport.BinaryData;
@@ -27,9 +28,11 @@ import org.apache.hadoop.classification.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.aliyun.oss.v2.acc.OssAccRuleManager;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.*;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.BlockLogContext;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.Operation;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.OperationStat;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.ObjectAttributes;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.RemoteLogContext;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -47,8 +51,8 @@ import static org.apache.hadoop.fs.aliyun.oss.v2.legency.AliyunOSSUtils.formatIn
 public class OssManager {
     private static final Logger LOG = LoggerFactory.getLogger(OssManager.class);
 
-    OSSClient client = null;
-    OSSClient accClient = null;
+    OSSDualClient client = null;
+    OSSDualClient accClient = null;
     OssAccRuleManager accRuleManager = null;
 
 
@@ -63,10 +67,11 @@ public class OssManager {
 
     private final List<OperationStat> operationStats = new ArrayList<>();
     private boolean isTracking = false;
-    private PerformanceLevel logLevel = PerformanceLevel.NONE;
+    private OSSManagerLogLevel logLevel = OSSManagerLogLevel.NONE;
     private String scene;
+    private boolean remoteDebug = false;
 
-    private OssManager(OSSClient client, OSSClient accClient, OssAccRuleManager accRuleManager) {
+    private OssManager(OSSDualClient client, OSSDualClient accClient, OssAccRuleManager accRuleManager) {
         this.client = client;
         this.accClient = accClient;
         this.accRuleManager = accRuleManager;
@@ -77,28 +82,34 @@ public class OssManager {
                 OSS_CLIENT_FACTORY_IMPL, DEFAULT_OSS_CLIENT_FACTORY_IMPL,
                 OSSClientFactory.class);
         OSSClientFactory clientFactory = ReflectionUtils.newInstance(ossClientFactoryClass, conf);
-        OSSClient ossClient = clientFactory.createOSSClient(conf);
-        OSSClient accClient = clientFactory.createAccOSSClient(conf);
+        OSSDualClient ossClient = clientFactory.createOSSClient(conf);
+        OSSDualClient accClient = clientFactory.createAccOSSClient(conf);
 
         OssAccRuleManager accRuleManager = new OssAccRuleManager(conf.get(ACC_RULES, ""));
 
         OssManager ossManager = new OssManager(ossClient, accClient, accRuleManager);
 
-        boolean tracking = conf.getBoolean(LOGGING_CLIENT, DEFAULT_LOGGING_CLIENT);
+        boolean remoteDebug = conf.getBoolean(REMOTE_DEBUG, DEFAULT_REMOTE_DEBUG);
+        ossManager.setRemoteDebug(remoteDebug);
 
+        boolean tracking = conf.getBoolean(LOGGING_CLIENT, DEFAULT_LOGGING_CLIENT);
         if (tracking) {
             ossManager.startTracking();
         }
 
 
-        PerformanceLevel level = PerformanceLevel.fromName(conf.getTrimmed(LOGGING_CLIENT_LEVEL, DEFAULT_LOGGING_CLIENT_LEVEL));
+        OSSManagerLogLevel level = OSSManagerLogLevel.fromName(conf.getTrimmed(LOGGING_CLIENT_LEVEL, DEFAULT_LOGGING_CLIENT_LEVEL));
         ossManager.setLogLevel(level);
 
 
         return ossManager;
     }
 
-    private void setLogLevel(PerformanceLevel level) {
+    private void setRemoteDebug(boolean remoteDebug) {
+        this.remoteDebug = remoteDebug;
+    }
+
+    private void setLogLevel(OSSManagerLogLevel level) {
         this.logLevel = level;
     }
 
@@ -113,7 +124,10 @@ public class OssManager {
      * @throws IOException IO异常
      */
     private <T> T trackOperation(OperationStat operationStat, Operation<T> operation) throws IOException {
-        long startTimeNanos = System.nanoTime();
+        long startTimeNanos = 0;
+        if (isTracking) {
+            startTimeNanos = System.nanoTime();
+        }
 
         try {
             //获取operation的所有入参
@@ -132,12 +146,12 @@ public class OssManager {
                 long durationNanos = endTimeNanos - startTimeNanos;
                 long durationMicros = durationNanos / 1000; // 转换为微秒
 
-                if (logLevel.getValue() >= PerformanceLevel.STATISTIC.getValue()) {
+                if (logLevel.getValue() >= OSSManagerLogLevel.STATISTIC.getValue()) {
                     // 更新统计信息
                     totalOperations.incrementAndGet();
                     totalOperationTime.addAndGet(durationMicros / 1000); // 转换为毫秒
 
-                    if (logLevel.getValue() >= PerformanceLevel.DETAIL.getValue()) {
+                    if (logLevel.getValue() >= OSSManagerLogLevel.DETAIL.getValue()) {
                         // 记录操作统计信息（包括异常）
                         operationStat.setDurationMicros(durationMicros);
                         operationStats.add(operationStat);
@@ -198,6 +212,8 @@ public class OssManager {
 
         try {
             client.close();
+            if (accClient != null)
+                accClient.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -236,7 +252,7 @@ public class OssManager {
     public void printTracking() {
         operationStats.sort(Comparator.comparing(OperationStat::getOperationTime));
 
-        if (logLevel.isAtLeast(PerformanceLevel.STATISTIC)) {
+        if (logLevel.isAtLeast(OSSManagerLogLevel.STATISTIC)) {
 
             // 打印详细的操作统计信息
             System.out.printf("=== Operation Statistics : scene *%s* ===", scene);
@@ -245,7 +261,7 @@ public class OssManager {
                     totalOperations.get() > 0 ? (double) totalOperationTime.get() / totalOperations.get() : 0);
 
 
-            if (logLevel.isAtLeast(PerformanceLevel.DETAIL)) {
+            if (logLevel.isAtLeast(OSSManagerLogLevel.DETAIL)) {
                 System.out.println("Operation Details (ordered by time):");
                 System.out.printf("%-5s %-20s  %-5s  %-5s  %-100s %-30s %-10s%n", "No.", "Operation", "Suc", "Acc", "Resource", "Time", "Duration(us)");
                 System.out.printf("%-5s %-20s  %-5s  %-5s  %-100s %-30s %-10s%n", "---", "---------", "-----", "-----", "--------", "----", "------------");
@@ -497,16 +513,56 @@ public class OssManager {
         });
     }
 
+    List<CompletableFuture<GetObjectResult> > getBatchObject(List<GetObjectReq> requestList) throws IOException {
 
-    public InputStream getObject(String bucketName, String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd) throws IOException {
-        return getObjectWithResult(bucketName, key, objectAttributes, byteStart, byteEnd).body();
+        List<CompletableFuture<GetObjectResult> > results = new ArrayList<>();
+        for (GetObjectReq req: requestList) {
+            results.add(getObjectWithResultAsync(req.getBucketName(), req.getKey(), req.getObjectAttributes(), req.getByteStart(), req.getByteEnd()));
+        }
+        return results;
     }
 
-    public GetObjectResult getObjectWithResult(String bucketName, String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd) throws IOException {
+    public InputStream getObject(String bucketName, String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd, BlockLogContext blockLogContext) throws IOException {
+        return getObjectWithResult(bucketName, key, objectAttributes, byteStart, byteEnd, blockLogContext).body();
+    }
+
+
+    public CompletableFuture<GetObjectResult>  getObjectWithResultAsync(String bucketName, String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd) throws IOException {
 
         String resource = new StringBuilder().append(key).append("(").append(byteStart).append("-").append(byteEnd).append(")").toString();
         boolean useAcc = useAcc(bucketName, key, objectAttributes, byteStart, byteEnd, OssActionEnum.GET_OBJECT);
-        OSSClient realClient = useAcc ? accClient : client;
+        OSSDualClient realClient = useAcc ? accClient : client;
+        //将start和end转换成Range"bytes=0-9"样式
+        String range = "bytes=" + byteStart + "-" + byteEnd;
+
+        OperationStat operationStat = new OperationStat.Builder()
+                .operationName(OssActionEnum.GET_OBJECT_ASYNC)
+                .bucketName(bucketName)
+                .resource(resource)
+                .operationTime(Instant.now())
+                .useAcc(useAcc)
+                .byteStart(byteStart)
+                .byteEnd(byteEnd)
+                .build();
+
+
+        return trackOperation(operationStat, () -> {
+
+            CompletableFuture<GetObjectResult> resultFuture = realClient.getObjectAsync(
+                    GetObjectRequest.newBuilder()
+                            .bucket(bucketName)
+                            .key(key)
+                            .range(range)
+                            .build());
+            return resultFuture;
+        });
+    }
+
+    public GetObjectResult getObjectWithResult(String bucketName, String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd, RemoteLogContext blockLogContext) throws IOException {
+
+        String resource = new StringBuilder().append(key).append("(").append(byteStart).append("-").append(byteEnd).append(")").toString();
+        boolean useAcc = useAcc(bucketName, key, objectAttributes, byteStart, byteEnd, OssActionEnum.GET_OBJECT);
+        OSSDualClient realClient = useAcc ? accClient : client;
         //将start和end转换成Range"bytes=0-9"样式
         String range = "bytes=" + byteStart + "-" + byteEnd;
 
@@ -522,13 +578,19 @@ public class OssManager {
 
 
         return trackOperation(operationStat, () -> {
+            GetObjectRequest.Builder r = GetObjectRequest.newBuilder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .range(range);
+            if(remoteDebug) {
+                String x = blockLogContext.toString();
+                Map<String, String> params = new HashMap<>();
+                params.put("u", blockLogContext.toString());
+                r.parameters(params);
+            }
 
             GetObjectResult result = realClient.getObject(
-                    GetObjectRequest.newBuilder()
-                            .bucket(bucketName)
-                            .key(key)
-                            .range(range)
-                            .build());
+                    r.build(), OperationOptions.defaults());
             return result;
         });
     }

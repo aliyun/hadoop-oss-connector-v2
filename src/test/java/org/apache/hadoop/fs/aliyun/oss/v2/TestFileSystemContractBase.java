@@ -53,9 +53,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * </p>
  */
 @Timeout(value = 30, unit = TimeUnit.MINUTES)
-public abstract class FileSystemContractBaseTest {
+public abstract class TestFileSystemContractBase {
   private static final Logger LOG =
-      LoggerFactory.getLogger(FileSystemContractBaseTest.class);
+      LoggerFactory.getLogger(TestFileSystemContractBase.class);
 
   protected final static String TEST_UMASK = "062";
   protected FileSystem fs;

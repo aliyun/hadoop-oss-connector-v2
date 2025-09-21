@@ -27,9 +27,10 @@ import org.apache.hadoop.fs.aliyun.oss.v2.model.ListParam;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.ListResultV2;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.ObjectMetadataParam;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.ObjectSummaryParam;
-import org.apache.hadoop.fs.aliyun.oss.v2.performance.AliyunOSSDirEmptyFlag;
-import org.apache.hadoop.fs.aliyun.oss.v2.performance.AliyunOSSStatusProbeEnum;
+import org.apache.hadoop.fs.aliyun.oss.v2.model.AliyunOSSDirEmptyFlag;
+import org.apache.hadoop.fs.aliyun.oss.v2.model.AliyunOSSStatusProbeEnum;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.*;
+import org.apache.hadoop.fs.aliyun.oss.v2.readahead.ReadAheadInputStream;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.BlockOutputStreamStatistics;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.impl.OutputStreamStatistics;
 import org.apache.hadoop.fs.aliyun.oss.v2.statistics.OSSPerformanceStatistics;
@@ -53,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.Math.max;
 import static org.apache.hadoop.fs.aliyun.oss.v2.legency.AliyunOSSUtils.*;
 import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.*;
 
@@ -97,6 +99,14 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
     private long readAhead;
     private long asyncDrainThreshold;
     private ChangeDetectionPolicy changeDetectionPolicy;
+    private int smallFileThreshold;
+    private int prefetchNumAfterSeek;
+    private int prefetchThreshold;
+    private int bigIoThreshold;
+    private int ossMergeSize;
+    private int bigIoPrefetchSize;
+    private int amplificationFactor;
+
 
     @Override
     public FSDataOutputStream append(Path path, int bufferSize,
@@ -357,7 +367,16 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
         store.initialize(name, conf, username, statistics);
         maxKeys = conf.getInt(MAX_PAGING_KEYS_KEY, MAX_PAGING_KEYS_DEFAULT);
 
+        smallFileThreshold = conf.getInt(SMALL_FILE_THRESHOLD_KEY, SMALL_FILE_THRESHOLD_DEFAULT);
+        prefetchNumAfterSeek
+                = conf.getInt(PREFETCH_NUM_AFTER_SEEK_KEY, PREFETCH_NUM_AFTER_SEEK_DEFAULT);
+        prefetchThreshold = conf.getInt(PREFETCH_THRESHOLD_KEY, PREFETCH_THRESHOLD_DEFAULT);
+        bigIoThreshold= conf.getInt(BIG_IO_THRESHOLD_KEY, BIG_IO_THRESHOLD_DEFAULT);
+        bigIoPrefetchSize= conf.getInt(BIG_IO_PREFETCH_SIZE_KEY, BIG_IO_PREFETCH_SIZE_DEFAULT);
+        ossMergeSize = conf.getInt(OSS_MERGE_SIZE_KEY, OSS_MERGE_SIZE_DEFAULT);
+        amplificationFactor = conf.getInt(AMPLIFICATION_FACTOR_KEY, AMPLIFICATION_FACTOR_DEFAULT);
 
+        LOG.info("AliyunOss BUFFER_PREFETCH_DIR {}",conf.get(BUFFER_PREFETCH_DIR_KEY));
 
         maxConcurrentCopyTasksPerDir = AliyunOSSUtils.intPositiveOption(conf,
                 Constants.MAX_CONCURRENT_COPY_TASKS_PER_DIR_KEY,
@@ -624,20 +643,28 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
             throw new FileNotFoundException("Can't open " + path + " because it is a directory");
         }
 
+        Configuration configuration = getConf();
+        LOG.debug("AliyunOss BUFFER_PREFETCH_DIR 1 {}",configuration.get(BUFFER_PREFETCH_DIR_KEY));
+        initLocalDirAllocatorIfNotInitialized(configuration);
+        ReadOpContext readContext = new ReadOpContext(fileStatus.getPath(),
+                fileStatus,
+                futurePool,
+                max(prefetchBlockSize,bufferSize),
+                prefetchBlockCount,
+                smallFileThreshold,
+                prefetchNumAfterSeek,
+                prefetchThreshold,
+                bigIoThreshold,
+                ossMergeSize,
+                bigIoPrefetchSize,
+                amplificationFactor);
+
+        readContext.withInputPolicy(inputPolicy)
+                .withChangeDetectionPolicy(changeDetectionPolicy)
+                .withAsyncDrainThreshold(asyncDrainThreshold)
+                .withReadahead(readAhead);
+
         if ("v2".equals(this.prefetchVersion)) {
-            Configuration configuration = getConf();
-            initLocalDirAllocatorIfNotInitialized(configuration);
-            ReadOpContext readContext = new ReadOpContext(fileStatus.getPath(),
-                    fileStatus,
-                    futurePool,
-                    prefetchBlockSize,
-                    prefetchBlockCount);
-
-            readContext.withInputPolicy(inputPolicy)
-                    .withChangeDetectionPolicy(changeDetectionPolicy)
-                    .withAsyncDrainThreshold(asyncDrainThreshold)
-                    .withReadahead(readAhead);
-
             return new FSDataInputStream(
                     new PrefetchingInputStream(
                             readContext.build(),
@@ -646,7 +673,14 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
                             configuration,
                             directoryAllocator,
                             ossPerformanceStatistics));
-        } else {
+        } else if ("v3".equals(this.prefetchVersion)) {
+            return new FSDataInputStream(
+                    new ReadAheadInputStream(readContext,
+                            createObjectAttributes(path, fileStatus),
+                            store.getOSSManager(),
+                            statistics));
+        }
+        else {
             return new FSDataInputStream(new AliyunOSSInputStream(getConf(),
                     new SemaphoredDelegatingExecutor(boundedThreadPool, maxReadAheadPartNumber, true),
                     maxReadAheadPartNumber, store, pathToKey(path), fileStatus.getLen(), statistics));
@@ -668,7 +702,7 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
     private void initLocalDirAllocatorIfNotInitialized(Configuration conf) {
         if (directoryAllocator == null) {
             synchronized (this) {
-//        String bufferDir = conf.get(BUFFER_PREFETCH_DIR_KEY,DEFAULTBUFFER_PREFETCH_DIR);
+                LOG.info("AliyunOss BUFFER_PREFETCH_DIR {}",conf.get(BUFFER_PREFETCH_DIR_KEY));
                 directoryAllocator = new LocalDirAllocator(BUFFER_PREFETCH_DIR_KEY);
             }
         }
@@ -810,6 +844,7 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
                 // Reduce the call of lock() can also improve our performance
                 if (copyFileContext.isCopyFailure()) {
                     //some error occurs, break
+                    LOG.warn("Copy file failed, break {} {}",objectSummaryParam.getKey(),copyFileContext.isCopyFailure());
                     break;
                 }
             }

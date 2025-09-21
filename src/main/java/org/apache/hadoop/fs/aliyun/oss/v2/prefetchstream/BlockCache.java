@@ -34,6 +34,10 @@ public interface BlockCache extends Closeable {
 
   void get(int blockNumber, ByteBuffer buffer) throws IOException;
 
+  boolean tryGet(int blockNumber, ByteBuffer buffer);
+
   void put(int blockNumber, ByteBuffer buffer, Configuration conf,
       LocalDirAllocator localDirAllocator) throws IOException;
+
+  int getMaxDiskBlocksCount();
 }

@@ -64,12 +64,29 @@ public class ReadOpContext {
   private final int prefetchBlockCount;
 
 
+  //Threshold for small file
+  private final int smallFileThreshold;
+  private int prefetchNumAfterSeek;
+  private int prefetchThreshold;
+  private int bigIoThreshold;
+  private int ossMergeSize;
+  private final int bigIoPrefetchSize;
+  private int amplificationFactor;
+
+
   public ReadOpContext(
-      final Path path,
-      FileStatus dstFileStatus,
-      ExecutorServiceFuturePool futurePool,
-      int prefetchBlockSize,
-      int prefetchBlockCount) {
+          final Path path,
+          FileStatus dstFileStatus,
+          ExecutorServiceFuturePool futurePool,
+          int prefetchBlockSize,
+          int prefetchBlockCount,
+          int smallFileThreshold,
+          int prefetchNumAfterSeek,
+          int prefetchThreshold,
+          int bigIoThreshold,
+          int ossMergeSize,
+          int bigIoPrefetchSize,
+          int amplificationFactor) {
 
     this.path = requireNonNull(path);
     this.futurePool = futurePool;
@@ -77,8 +94,15 @@ public class ReadOpContext {
         prefetchBlockSize > 0, "invalid prefetchBlockSize %d", prefetchBlockSize);
     this.prefetchBlockSize = prefetchBlockSize;
     Preconditions.checkArgument(
-        prefetchBlockCount > 0, "invalid prefetchBlockCount %d", prefetchBlockCount);
+        prefetchBlockCount >= 0, "invalid prefetchBlockCount %d", prefetchBlockCount);
     this.prefetchBlockCount = prefetchBlockCount;
+    this.smallFileThreshold = smallFileThreshold;
+    this.prefetchNumAfterSeek = prefetchNumAfterSeek;
+    this.prefetchThreshold = prefetchThreshold;
+    this.bigIoThreshold = bigIoThreshold;
+    this.ossMergeSize = ossMergeSize;
+    this.bigIoPrefetchSize = bigIoPrefetchSize;
+    this.amplificationFactor = amplificationFactor;
   }
 
   /**
@@ -92,6 +116,7 @@ public class ReadOpContext {
         "invalid readahead %d", readahead);
     Preconditions.checkArgument(asyncDrainThreshold >= 0,
         "invalid drainThreshold %d", asyncDrainThreshold);
+
     return this;
   }
 
@@ -129,6 +154,10 @@ public class ReadOpContext {
    */
   public long getReadahead() {
     return readahead;
+  }
+
+  public int getSmallFileThreshold() {
+    return smallFileThreshold;
   }
 
   /**
@@ -233,4 +262,28 @@ public class ReadOpContext {
     sb.append('}');
     return sb.toString();
   }
+
+  public int getPrefetchNumAfterSeek() {
+    return prefetchNumAfterSeek;
+  }
+
+  public int getPrefetchThreshold() {
+    return prefetchThreshold;
+  }
+
+  public int getBigIoThreshold() {
+    return bigIoThreshold;
+  }
+
+  public int getOssMergeSize() {
+    return ossMergeSize;
+  }
+
+    public int getBigIoPrefetchSize() {
+        return bigIoPrefetchSize;
+    }
+
+    public int getAmplificationFactor() {
+    return amplificationFactor;
+    }
 }

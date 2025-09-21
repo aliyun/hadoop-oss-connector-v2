@@ -20,6 +20,7 @@ package org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream;
 
 import com.aliyun.sdk.service.oss2.models.GetObjectResult;
 import org.apache.hadoop.fs.aliyun.oss.v2.OssManager;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.RemoteLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,14 +68,14 @@ public class RemoteObject {
     return objectAttributes.getLen();
   }
 
-  public GetObjectResult openForRead(long offset, int size, ObjectAttributes objectAttributes)
+  public GetObjectResult openForRead(long offset, int size, ObjectAttributes objectAttributes, RemoteLogContext remoteLogContext)
       throws IOException {
 
       String operation = String.format(
               "%s %s at %d", "open", uri, offset);
       GetObjectResult request;
       try {
-          request = client.getObjectWithResult(objectAttributes.getBucket(), objectAttributes.getKey(), objectAttributes, offset, offset + size - 1);
+          request = client.getObjectWithResult(objectAttributes.getBucket(), objectAttributes.getKey(), objectAttributes, offset, offset + size - 1, remoteLogContext);
       } catch (IOException e) {
           throw e;
       }

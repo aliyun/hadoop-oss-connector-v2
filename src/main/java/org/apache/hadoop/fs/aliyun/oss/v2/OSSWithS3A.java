@@ -16,12 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.fs.aliyun.oss.v2.legency;
+package org.apache.hadoop.fs.aliyun.oss.v2;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.DelegateToFileSystem;
-import org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem;
-import org.apache.hadoop.fs.aliyun.oss.v2.Constants;
 
 import java.io.IOException;
 import java.net.URI;
@@ -31,11 +29,11 @@ import java.net.URISyntaxException;
  * OSS implementation of AbstractFileSystem.
  * This impl delegates to the AliyunOSSFileSystem.
  */
-public class OSS extends DelegateToFileSystem {
+public class OSSWithS3A extends DelegateToFileSystem {
 
-    public OSS(URI theUri, Configuration conf)
+    public OSSWithS3A(URI theUri, Configuration conf)
             throws IOException, URISyntaxException {
-        super(theUri, new AliyunOSSPerformanceFileSystem(), conf, "oss", false);
+        super(theUri, new AliyunOSSPerformanceFileSystem(), conf, "s3a", false);
     }
 
     @Override

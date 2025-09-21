@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.aliyun.oss.v2.legency.FileStatusAcceptor;
 import org.apache.hadoop.fs.aliyun.oss.v2.legency.OSSDataBlocks;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.*;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.ObjectAttributes;
+import org.apache.hadoop.fs.aliyun.oss.v2.statistics.remotelog.BlockLogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -315,12 +316,13 @@ public class AliyunOSSFileSystemStore {
      * @param objectAttributes the attributes of the object, including its size and other metadata.
      * @param byteStart        start position.
      * @param byteEnd          end position.
+     * @param blockLogContext
      * @return This method returns null if the key is not found.
      * @throws Exception if there is an error during retrieval.
      */
-    public InputStream retrieve(String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd) throws Exception {
+    public InputStream retrieve(String key, ObjectAttributes objectAttributes, long byteStart, long byteEnd, BlockLogContext blockLogContext) throws Exception {
         try {
-            InputStream in = ossClient.getObject(bucketName, key, objectAttributes, byteStart, byteEnd);
+            InputStream in = ossClient.getObject(bucketName, key, objectAttributes, byteStart, byteEnd, blockLogContext);
             statistics.incrementReadOps(1);
             return in;
         } catch (ObjectNotFoundException e) {
