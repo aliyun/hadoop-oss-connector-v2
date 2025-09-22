@@ -6,7 +6,7 @@
 
     <groupId>com.aliyun</groupId>
     <artifactId>hadoop-oss</artifactId>
-    <version>3.3.5-2.0.25-alpha-SNAPSHOT</version>
+    <version>3.3.5-2.0.25-alpha</version>
     <packaging>jar</packaging>
 
     <name>Apache Hadoop Alibaba Cloud OSS Support</name>
