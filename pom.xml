@@ -13,6 +13,8 @@
     <description>
         This module contains code to support integration with Alibaba Cloud OSS.
     </description>
+    <url>https://github.com/aliyun/hadoop-oss-connector-v2.git</url>
+
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
