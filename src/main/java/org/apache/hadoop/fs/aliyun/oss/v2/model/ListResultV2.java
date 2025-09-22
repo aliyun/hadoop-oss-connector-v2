@@ -126,7 +126,7 @@ public class ListResultV2 {
      * For example, consider a bucket that contains the following objects:
      * "fun/test.jpg", "fun/movie/001.avi", "fun/movie/007.avi".
      * if calling the prefix="fun/" and delimiter="/", the returned
-     * {@link ListObjectsV2Result} object will contain the common prefix of "fun/movie/".
+     * ListObjectsV2Result object will contain the common prefix of "fun/movie/".
      *
      * @return The list of common prefixes included in this object listing,
      * which might be an empty list if no common prefixes were found.
@@ -295,7 +295,7 @@ public class ListResultV2 {
      * Sets the continuation token.
      *
      * @param continuationToken The parameter should be set with the value of
-     *                          {@link ListObjectsV2Result#getNextContinuationToken()}
+     *                          ListObjectsV2Result#getNextContinuationToken()
      */
     public void setContinuationToken(String continuationToken) {
         this.continuationToken = continuationToken;

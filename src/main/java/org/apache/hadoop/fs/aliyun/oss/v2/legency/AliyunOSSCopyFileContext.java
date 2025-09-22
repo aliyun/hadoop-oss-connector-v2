@@ -22,7 +22,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Used by {@link LegacyOSSFileSystemImpl} and {@link AliyunOSSCopyFileTask}
+ * Used by LegacyOSSFileSystemImpl and AliyunOSSCopyFileTask
  * as copy context. It contains some variables used in copy process.
  */
 public class AliyunOSSCopyFileContext {

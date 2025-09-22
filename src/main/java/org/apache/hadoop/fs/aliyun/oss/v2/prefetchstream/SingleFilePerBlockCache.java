@@ -205,9 +205,7 @@ public class SingleFilePerBlockCache implements BlockCache {
     /**
      * Constructs an instance of a {@code SingleFilePerBlockCache}.
      *
-     * @param prefetchingStatistics statistics for this stream.
-     * @param trackerFactory        tracker with statistics to update
-     * @param steamUuid
+     * @param steamUuid             stream UUID
      * @param maxBlocksCount        max blocks count to be kept in cache at any time.
      */
     public SingleFilePerBlockCache(String steamUuid, int maxBlocksCount) {
@@ -517,7 +515,7 @@ public class SingleFilePerBlockCache implements BlockCache {
      * Return temporary file created based on the file path retrieved from local dir allocator.
      *
      * @param conf              The configuration object.
-     * @param blockNumber
+     * @param blockNumber       The block number.
      * @param localDirAllocator Local dir allocator instance.
      * @return Path of the temporary file created.
      * @throws IOException if IO error occurs while local dir allocator tries to retrieve path

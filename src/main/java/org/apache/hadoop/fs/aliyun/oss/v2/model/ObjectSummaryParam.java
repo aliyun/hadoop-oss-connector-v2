@@ -40,7 +40,7 @@ package org.apache.hadoop.fs.aliyun.oss.v2.model;
 import java.util.Date;
 
 /**
- * {@link OSSObject} summary information.
+ * OSSObject summary information.
  */
 public class ObjectSummaryParam {
 
@@ -64,7 +64,7 @@ public class ObjectSummaryParam {
     }
 
     /**
-     * Gets the {@link Bucket} name.
+     * Gets the Bucket name.
      *
      * @return The bucket name.
      */
@@ -73,10 +73,10 @@ public class ObjectSummaryParam {
     }
 
     /**
-     * Sets the {@link Bucket} name.
+     * Sets the Bucket name.
      *
      * @param bucketName
-     *            The {@link Bucket} name.
+     *            The Bucket name.
      */
     public void setBucketName(String bucketName) {
         this.bucketName = bucketName;

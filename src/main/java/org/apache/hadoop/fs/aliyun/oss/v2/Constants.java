@@ -276,7 +276,7 @@ public final class Constants {
 
     /**
      * Change is detected by passing the expected value in the GetObject request.
-     * If the expected value is unavailable, {@link RemoteFileChangedException} is
+     * If the expected value is unavailable, RemoteFileChangedException is
      * thrown.
      */
     public static final String CHANGE_DETECT_MODE_SERVER = "server";

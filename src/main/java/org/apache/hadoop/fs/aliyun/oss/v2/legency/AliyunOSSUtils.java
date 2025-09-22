@@ -100,7 +100,6 @@ final public class AliyunOSSUtils {
      * Create credential provider specified by configuration, or create default
      * credential provider if not specified.
      *
-     * @param uri uri passed by caller
      * @param conf configuration
      * @return a credential provider
      * @throws IOException on any problem. Class construction issues may be
@@ -201,7 +200,7 @@ final public class AliyunOSSUtils {
     }
 
     /**
-     * Get a integer option >= the minimum allowed value.
+     * Get a integer option that is no less than the minimum allowed value.
      * @param conf configuration
      * @param key key to look up
      * @param defVal default value
@@ -219,7 +218,7 @@ final public class AliyunOSSUtils {
     }
 
     /**
-     * Get a long option >= the minimum allowed value.
+     * Get a long option that is no less than the minimum allowed value.
      * @param conf configuration
      * @param key key to look up
      * @param defVal default value
