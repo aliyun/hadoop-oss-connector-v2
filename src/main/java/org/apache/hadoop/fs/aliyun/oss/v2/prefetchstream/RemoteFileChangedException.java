@@ -24,7 +24,7 @@ import org.apache.hadoop.fs.PathIOException;
 
 /**
  * Indicates the oss object is out of sync with the expected version.  Thrown in
- * cases such as when the object is updated while an {@link ossAInputStream} is
+ * cases such as when the object is updated while an ossAInputStream is
  * open, or when a file to be renamed disappeared during the operation.
  */
 @SuppressWarnings("serial")

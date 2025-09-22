@@ -77,9 +77,10 @@ public class AliyunOSSFileSystemStore {
 
 
     /**
-     * Delete an object, and update write operation statistics.
+     * Deletes an object with the specified key.
      *
-     * @param key key to blob to delete.
+     * @param key the key of the object to delete
+     * @throws IOException if an I/O error occurs during deletion
      */
     public void deleteObject(String key) throws IOException {
         try {
@@ -158,6 +159,7 @@ public class AliyunOSSFileSystemStore {
      *
      * @param key object key.
      * @return return null if key does not exist.
+     * @throws IOException if an I/O error occurs
      */
     public ObjectMetadataParam getObjectMetadata(String key) throws IOException {
         try {
@@ -218,6 +220,7 @@ public class AliyunOSSFileSystemStore {
      * @param srcLen source file length.
      * @param dstKey destination key.
      * @return true if file is successfully copied.
+     * @throws IOException if an I/O error occurs during copy
      */
     public boolean copyFile(String srcKey, long srcLen, String dstKey) throws IOException {
         return singleCopy(srcKey, dstKey);
@@ -230,6 +233,7 @@ public class AliyunOSSFileSystemStore {
      * @param srcKey source key.
      * @param dstKey destination key.
      * @return true if object is successfully copied.
+     * @throws IOException if an I/O error occurs during copy
      */
     protected boolean singleCopy(String srcKey, String dstKey) throws IOException {
         ossClient.copyObject(bucketName, srcKey, bucketName, dstKey);
@@ -281,8 +285,9 @@ public class AliyunOSSFileSystemStore {
     /**
      * list objects.
      *
-     * @param listRequest list request.
+     * @param listParam list request.
      * @return a list of matches.
+     * @throws IOException if an I/O error occurs during listing
      */
     public ListResultV2 listObjects(ListParam listParam) throws IOException {
         ListResultV2 listResult = ossClient.listObjectsV2(listParam);
@@ -293,9 +298,10 @@ public class AliyunOSSFileSystemStore {
     /**
      * continue to list objects depends on previous list result.
      *
-     * @param listRequest   list request.
-     * @param preListResult previous list result.
+     * @param lastListParam    previous list param.
+     * @param lastListResultV2 previous list result.
      * @return a list of matches.
+     * @throws IOException if an I/O error occurs during listing
      */
     public ListResultV2 continueListObjects(ListParam lastListParam,
                                             ListResultV2 lastListResultV2) throws IOException {
@@ -316,7 +322,7 @@ public class AliyunOSSFileSystemStore {
      * @param objectAttributes the attributes of the object, including its size and other metadata.
      * @param byteStart        start position.
      * @param byteEnd          end position.
-     * @param blockLogContext
+     * @param blockLogContext  log context for the block
      * @return This method returns null if the key is not found.
      * @throws Exception if there is an error during retrieval.
      */
@@ -507,6 +513,7 @@ public class AliyunOSSFileSystemStore {
      *
      * @param key object key.
      * @return upload id.
+     * @throws IOException if an I/O error occurs during initiation
      */
     public String getUploadId(String key) throws IOException {
         String uploadId =
@@ -519,8 +526,8 @@ public class AliyunOSSFileSystemStore {
      *
      * @param key       object key.
      * @param uploadId  upload id of this multipart upload.
-     * @param partETags part etags need to be completed.
-     * @return CompleteMultipartUploadResult.
+     * @param partETagParamList part etags need to be completed.
+     * @throws IOException if an I/O error occurs during completion
      */
     public void completeMultipartUpload(String key,
                                         String uploadId, List<PartETagParam> partETagParamList) throws IOException {
@@ -533,6 +540,7 @@ public class AliyunOSSFileSystemStore {
      *
      * @param key      object key.
      * @param uploadId upload id of this multipart upload.
+     * @throws IOException if an I/O error occurs during abort
      */
     public void abortMultipartUpload(String key, String uploadId) throws IOException {
         ossClient.abortMultipartUpload(bucketName, key, uploadId);
