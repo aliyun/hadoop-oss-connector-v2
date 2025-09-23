@@ -13,11 +13,17 @@
     <description>
         This module contains code to support integration with Alibaba Cloud OSS.
     </description>
+    <url>https://github.com/aliyun/hadoop-oss-connector-v2.git</url>
+
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <maven-publishing-plugin.version>0.8.0</maven-publishing-plugin.version>
+        <maven-javadoc-plugin.version>3.4.1</maven-javadoc-plugin.version>
+        <jre.version>1.8</jre.version>
     </properties>
 
     <dependencies>
@@ -161,17 +167,100 @@
                     </filters>
                 </configuration>
             </plugin>
+
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <detectJavaApiLink>false</detectJavaApiLink>
+                    <source>${jre.version}</source>
+                    <notree>true</notree>
+                    <includeDependencySources>false</includeDependencySources>
+                    <doclint>all,-missing</doclint>
+                    <!-- Exclude service packages to accelerate build -->
+                    <excludePackageNames>*.internal;*.internal.*;*.impl;*.transport.jdkclient;*.paginator.flow</excludePackageNames>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>${maven-gpg-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>${maven-publishing-plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <includes>
+                        <include>**/*</include>
+                    </includes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
+
     <distributionManagement>
-        <repository>
-            <id>releases</id>
-            <url>http://repo.alibaba-inc.com/mvn/releases</url>
-        </repository>
         <snapshotRepository>
-            <id>snapshots</id>
-            <url>http://repo.alibaba-inc.com/mvn/snapshots</url>
+            <id>sonatype-nexus-snapshots</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
         </snapshotRepository>
+        <repository>
+            <id>sonatype-nexus-staging</id>
+            <url>https://central.sonatype.com</url>
+        </repository>
     </distributionManagement>
+
+    <scm>
+        <connection>scm:git:git@github.com:aliyun/hadoop-oss-connector-v2.git</connection>
+        <developerConnection>scm:git:git@github.com:aliyun/hadoop-oss-connector-v2.git</developerConnection>
+        <url>https://github.com/aliyun/hadoop-oss-connector-v2.git</url>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution/>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>aliyunproducts</id>
+            <name>Aliyun SDK</name>
+            <email>aliyunsdk@aliyun.com</email>
+        </developer>
+    </developers>
 </project>
