@@ -153,7 +153,7 @@ public final class Constants {
             "fs.oss.fast.upload.buffer";
 
     /**
-     * Buffer blocks to disk: {@value}.
+     * Buffer blocks to disk: {@value }.
      * Capacity is limited to available disk space.
      */
     public static final String FAST_UPLOAD_BUFFER_DISK = "disk";
@@ -259,44 +259,6 @@ public final class Constants {
     public static final String FS_OSS_PERFORMANCE_FLAGS_CREATE =
             "fs.oss.performance.flags.create";
     public static final boolean FS_OSS_PERFORMANCE_FLAGS_CREATE_DEFAULT = false;
-
-
-    /**
-     * eTag as the change detection mechanism.
-     */
-    public static final String CHANGE_DETECT_SOURCE_ETAG = "etag";
-
-    public static final String CHANGE_DETECT_MODE =
-            "fs.oss.change.detection.mode";
-
-
-    public static final String CHANGE_DETECT_SOURCE
-            = "fs.oss.change.detection.source";
-    public static final String CHANGE_DETECT_MODE_CLIENT = "client";
-
-    /**
-     * Change is detected by passing the expected value in the GetObject request.
-     * If the expected value is unavailable, RemoteFileChangedException is
-     * thrown.
-     */
-    public static final String CHANGE_DETECT_MODE_SERVER = "server";
-
-    public static final String CHANGE_DETECT_MODE_DEFAULT =
-            CHANGE_DETECT_MODE_SERVER;
-
-    /**
-     * Change is detected on the client side by comparing the returned id with the
-     * expected id.  A difference results in a WARN level message being logged.
-     */
-    public static final String CHANGE_DETECT_MODE_WARN = "warn";
-
-    /**
-     * Change detection is turned off.  Readers may see inconsistent results due
-     * to concurrent writes without any exception or warning messages.  May be
-     * useful with third-party oss API implementations that don't support one of
-     * the change detection modes.
-     */
-    public static final String CHANGE_DETECT_MODE_NONE = "none";
 
 
     public static final String INPUT_FADV_NORMAL = "normal";

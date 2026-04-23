@@ -40,11 +40,6 @@ public class ReadOpContext {
   private InputPolicy inputPolicy;
 
   /**
-   * How to detect and deal with the object being updated during read.
-   */
-  private ChangeDetectionPolicy changeDetectionPolicy;
-
-  /**
    * Readahead for GET operations/skip, etc.
    */
   private long readahead;
@@ -110,7 +105,6 @@ public class ReadOpContext {
    * @return a read operation context ready for use.
    */
   public ReadOpContext build() {
-    requireNonNull(changeDetectionPolicy, "changeDetectionPolicy");
     requireNonNull(inputPolicy, "inputPolicy");
     Preconditions.checkArgument(readahead >= 0,
         "invalid readahead %d", readahead);
@@ -144,10 +138,6 @@ public class ReadOpContext {
     return inputPolicy;
   }
 
-  public ChangeDetectionPolicy getChangeDetectionPolicy() {
-    return changeDetectionPolicy;
-  }
-
   /**
    * Get the readahead for this operation.
    * @return a value {@literal >=} 0
@@ -175,17 +165,6 @@ public class ReadOpContext {
    */
   public ReadOpContext withInputPolicy(final InputPolicy value) {
     inputPolicy = value;
-    return this;
-  }
-
-  /**
-   * Set builder value.
-   * @param value new value
-   * @return the builder
-   */
-  public ReadOpContext withChangeDetectionPolicy(
-      final ChangeDetectionPolicy value) {
-    changeDetectionPolicy = value;
     return this;
   }
 
@@ -258,7 +237,6 @@ public class ReadOpContext {
     sb.append("path=").append(path);
     sb.append(", inputPolicy=").append(inputPolicy);
     sb.append(", readahead=").append(readahead);
-    sb.append(", changeDetectionPolicy=").append(changeDetectionPolicy);
     sb.append('}');
     return sb.toString();
   }
