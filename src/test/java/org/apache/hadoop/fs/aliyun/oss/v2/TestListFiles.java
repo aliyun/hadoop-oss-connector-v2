@@ -116,7 +116,7 @@ public class TestListFiles {
 
         assertTrue(res.length > 0, "Test file should have a status");
         assertTrue(res[0].isFile(), "Test file should be a file");
-        assertEquals(conf.get("test.fs.oss.name") + testFile.toString(), res[0].getPath().toString(), "Test file should have the right path");
+        assertEquals(new Path(conf.get("test.fs.oss.name") + testFile.toString()).toString(), res[0].getPath().toString(), "Test file should have the right path");
         assertEquals(testDataBytes.length, res[0].getLen(), "Test file should have the right length");
     }
 
@@ -163,11 +163,11 @@ public class TestListFiles {
 
         assertTrue(res.length  == 2, "Test file should have a status");
         assertTrue(res[0].isFile(), "Test file should be a file");
-        assertEquals(conf.get("test.fs.oss.name") + testFile.toString(), res[0].getPath().toString(), "Test file should have the right path");
+        assertEquals(new Path(conf.get("test.fs.oss.name") + testFile.toString()).toString(), res[0].getPath().toString(), "Test file should have the right path");
         assertEquals(testDataBytes.length, res[0].getLen(), "Test file should have the right length");
 
         assertTrue(res[1].isDirectory(), "Test file should be a file");
-        assertEquals(conf.get("test.fs.oss.name") + dir1.toString(), res[1].getPath().toString(), "Test file should have the right path");
+        assertEquals(new Path(conf.get("test.fs.oss.name") + dir1.toString()).toString(), res[1].getPath().toString(), "Test file should have the right path");
         assertEquals(0, res[1].getLen(), "Test file should have the right length");
     }
 
