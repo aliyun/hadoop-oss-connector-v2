@@ -101,6 +101,9 @@ public class TestOssAccRule {
 //                "           </rules>";
 
         conf.set(ACC_RULES, ruleStr);
+        conf.set("fs.oss.impl", "org.apache.hadoop.fs.aliyun.oss.v2.AliyunOSSPerformanceFileSystem");
+        conf.setBoolean(LOGGING_CLIENT, true);
+        conf.set(LOGGING_CLIENT_LEVEL, "detail");
 
         // Initialize the file system
         fs = (AliyunOSSPerformanceFileSystem) FileSystem.get(getURI(conf), conf);
@@ -384,7 +387,8 @@ public class TestOssAccRule {
             assertArrayEquals(expected, buffer, "Should read the same data");
             OperationStat operation = fs.getStore().getOSSManager().getOperationStats().stream()
                     .filter(operationStat -> {
-                        return operationStat.getOperationName() == OssActionEnum.GET_OBJECT;
+                        return operationStat.getOperationName() == OssActionEnum.GET_OBJECT
+                                || operationStat.getOperationName() == OssActionEnum.GET_OBJECT_ASYNC;
                     }).findFirst().get();
             assertEquals(expectedAcc, operation.isUseAcc());
         }

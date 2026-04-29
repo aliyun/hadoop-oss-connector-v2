@@ -98,7 +98,6 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
     private InputPolicy inputPolicy;
     private long readAhead;
     private long asyncDrainThreshold;
-    private ChangeDetectionPolicy changeDetectionPolicy;
     private int smallFileThreshold;
     private int prefetchNumAfterSeek;
     private int prefetchThreshold;
@@ -401,8 +400,6 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
         readAhead = conf.getLong(READAHEAD_RANGE, DEFAULT_READAHEAD_RANGE);
         asyncDrainThreshold = conf.getLong(ASYNC_DRAIN_THRESHOLD, DEFAULT_ASYNC_DRAIN_THRESHOLD);
         LOG.debug("Input fadvise policy = {}", inputPolicy);
-        changeDetectionPolicy = ChangeDetectionPolicy.getPolicy(conf);
-        LOG.debug("Change detection policy = {}", changeDetectionPolicy);
 
         int maxThreads = conf.getInt(MAX_THREADS, DEFAULT_MAX_THREADS);
         this.prefetchBlockSize = conf.getInt(PREFETCH_BLOCK_SIZE_KEY, PREFETCH_BLOCK_DEFAULT_SIZE);
@@ -660,7 +657,6 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
                 amplificationFactor);
 
         readContext.withInputPolicy(inputPolicy)
-                .withChangeDetectionPolicy(changeDetectionPolicy)
                 .withAsyncDrainThreshold(asyncDrainThreshold)
                 .withReadahead(readAhead);
 
