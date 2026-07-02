@@ -35,8 +35,11 @@ public final class Constants {
             VersionInfoUtils.getDefaultUserAgent();
 
     // Class of credential provider
-//  public static final String CREDENTIALS_PROVIDER_KEY =
-//      "fs.oss.credentials.provider";
+    public static final String CREDENTIALS_PROVIDER_KEY =
+        "fs.oss.credentials.provider";
+
+    // Per-bucket configuration prefix
+    public static final String FS_OSS_BUCKET_PREFIX = "fs.oss.bucket.";
 
     public static final int OSS_DEFAULT_PORT = -1;
 
@@ -44,6 +47,23 @@ public final class Constants {
     public static final String ACCESS_KEY_ID = "fs.oss.accessKeyId";
     public static final String ACCESS_KEY_SECRET = "fs.oss.accessKeySecret";
     public static final String SECURITY_TOKEN = "fs.oss.securityToken";
+
+    // ECS RAM Role configuration
+    public static final String ECS_RAM_ROLE_NAME_KEY = "fs.oss.ecs.ram.role.name";
+
+    // RAM Role ARN (STS AssumeRole) configuration
+    public static final String ASSUMED_ROLE_ARN = "fs.oss.assumed.role.arn";
+    public static final String ASSUMED_ROLE_SESSION_NAME = "fs.oss.assumed.role.session.name";
+    public static final String ASSUMED_ROLE_POLICY = "fs.oss.assumed.role.policy";
+    public static final String ASSUMED_ROLE_EXPIRATION = "fs.oss.assumed.role.expiration";
+
+    // OIDC (K8s RRSA) configuration
+    public static final String OIDC_ROLE_ARN = "fs.oss.oidc.role.arn";
+    public static final String OIDC_PROVIDER_ARN = "fs.oss.oidc.provider.arn";
+    public static final String OIDC_TOKEN_FILE = "fs.oss.oidc.token.file";
+    public static final String OIDC_SESSION_NAME = "fs.oss.oidc.session.name";
+    public static final String OIDC_POLICY = "fs.oss.oidc.policy";
+    public static final String OIDC_EXPIRATION = "fs.oss.oidc.expiration";
 
     // Number of simultaneous connections to oss
     public static final String MAXIMUM_CONNECTIONS_KEY =
@@ -276,7 +296,7 @@ public final class Constants {
 
     /**
      * Change is detected by passing the expected value in the GetObject request.
-     * If the expected value is unavailable, {@link RemoteFileChangedException} is
+     * If the expected value is unavailable, {@link org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.RemoteFileChangedException} is
      * thrown.
      */
     public static final String CHANGE_DETECT_MODE_SERVER = "server";
@@ -365,4 +385,9 @@ public final class Constants {
     public static final String DEFAULT_LOGGING_CLIENT_LEVEL = "none";
 
     public static final String ACC_RULES = "fs.oss.acc.rules";
+
+    /**
+     * Prefix for all fs.oss configuration keys: {@value}.
+     */
+    public static final String FS_OSS_PREFIX = "fs.oss.";
 }

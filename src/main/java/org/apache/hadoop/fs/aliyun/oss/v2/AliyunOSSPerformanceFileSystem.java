@@ -337,6 +337,11 @@ public class AliyunOSSPerformanceFileSystem extends FileSystem {
         bucket = name.getHost();
         LOG.debug("Initializing AliyunOSSFileSystem for {}", bucket);
 
+        // Apply per-bucket configuration overrides before any config is read.
+        // propagateBucketOptions returns a new Configuration clone, so the
+        // original is not modified.
+        conf = AliyunOSSUtils.propagateBucketOptions(conf, bucket);
+
         conf = ProviderUtils.excludeIncompatibleCredentialProviders(
                 conf, AliyunOSSPerformanceFileSystem.class);
         super.initialize(name, conf);
