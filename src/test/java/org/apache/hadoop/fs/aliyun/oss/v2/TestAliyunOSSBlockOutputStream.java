@@ -195,7 +195,11 @@ public class TestAliyunOSSBlockOutputStream {
   }
 
   private void bufferDirShouldEmpty() throws IOException {
-    Path bufferPath = new Path(fs.getConf().get(BUFFER_DIR_KEY));
+    String bufferDir = fs.getConf().get(BUFFER_DIR_KEY);
+    if (bufferDir == null) {
+      return;
+    }
+    Path bufferPath = new Path(bufferDir);
     FileStatus[] files = bufferPath.getFileSystem(
         fs.getConf()).listStatus(bufferPath);
     //打印files

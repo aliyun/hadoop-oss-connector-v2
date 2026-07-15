@@ -623,7 +623,7 @@ public abstract class CachingBlockManager extends BlockManager {
 
 
     /**
-     * 将 List<BufferData> 按照 blockSize 和 threshold 切分为多个子列表。
+     * 将 List BufferData 按照 blockSize 和 threshold 切分为多个子列表。
      *
      * @param data      待切分的数据列表
      * @param blockSize 每个 BufferData 的大小（字节数）

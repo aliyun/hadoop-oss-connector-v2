@@ -44,7 +44,6 @@ public class PartETagParam implements Comparable<PartETagParam> {
      * @param partNumber Part number.
      * @param eTag       Part ETag.
      * @param partSize   Part Size.
-     * @param partCRC    Part's CRC value.
      */
     public PartETagParam(int partNumber, String eTag, long partSize) {
         this.partNumber = partNumber;

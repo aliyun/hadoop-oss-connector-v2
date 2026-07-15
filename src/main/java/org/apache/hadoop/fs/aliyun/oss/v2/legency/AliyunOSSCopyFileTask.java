@@ -23,7 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Used by {@link LegacyOSSFileSystemImpl} as an task that submitted
+ * Used by LegacyOSSFileSystemImpl as an task that submitted
  * to the thread pool to accelerate the copy progress.
  * Each AliyunOSSCopyFileTask copies one file from src path to dst path
  */

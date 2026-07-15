@@ -817,7 +817,7 @@ public class TestFileSystemMetaOperation {
         assertEquals(1, fileStatuses.length, "Should list 1 item for file");
 
         //路径为oss://bucket/path
-        assertEquals(fs.getConf().get(TEST_FS_OSS_NAME)+file1, fileStatuses[0].getPath().toString(), "Should return the file itself");
+        assertEquals(new Path(fs.getConf().get(TEST_FS_OSS_NAME)+file1).toString(), fileStatuses[0].getPath().toString(), "Should return the file itself");
 
         // 场景3: 列出不存在的路径（应该抛出FileNotFoundException）
         Path nonExistent = new Path(testRootPath, "non-existent");
@@ -918,7 +918,7 @@ public class TestFileSystemMetaOperation {
         FileStatus fileStatus = fs.getFileStatus(testFile);
         ossManager.stopTracking();
         ossManager.printTracking();
-        assertEquals(fs.getConf().get(TEST_FS_OSS_NAME) + testFile, fileStatus.getPath().toString(), "File path should match");
+        assertEquals(new Path(fs.getConf().get(TEST_FS_OSS_NAME) + testFile).toString(), fileStatus.getPath().toString(), "File path should match");
         assertEquals(testData.length(), fileStatus.getLen(), "File length should match");
         assertFalse(fileStatus.isDirectory(), "Should not be a directory");
         assertTrue(fileStatus.isFile(), "Should be a file");
@@ -932,7 +932,7 @@ public class TestFileSystemMetaOperation {
         FileStatus dirStatus = fs.getFileStatus(testDir);
         ossManager.stopTracking();
         ossManager.printTracking();
-        assertEquals(fs.getConf().get(TEST_FS_OSS_NAME) + testDir, dirStatus.getPath().toString(), "Directory path should match");
+        assertEquals(new Path(fs.getConf().get(TEST_FS_OSS_NAME) + testDir).toString(), dirStatus.getPath().toString(), "Directory path should match");
         assertTrue(dirStatus.isDirectory(), "Should be a directory");
         assertFalse(dirStatus.isFile(), "Should not be a file");
 

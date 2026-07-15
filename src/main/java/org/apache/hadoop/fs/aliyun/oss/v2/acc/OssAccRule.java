@@ -77,10 +77,12 @@ public class OssAccRule {
     /**
      * Check if this rule matches the given bucket, key, size and operation.
      *
-     * @param bucket    the bucket name
-     * @param key       the object key
-     * @param size      the object size
-     * @param operation the operation name
+     * @param bucket      the bucket name
+     * @param key         the object key
+     * @param objectSize  the object size
+     * @param byteStart   the start byte position of the IO request
+     * @param byteEnd     the end byte position of the IO request
+     * @param operation   the operation name
      * @return true if the rule matches, false otherwise
      */
     public boolean matches(String bucket, String key, long objectSize, long byteStart, long byteEnd, String operation) {

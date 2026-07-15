@@ -63,7 +63,7 @@ public final class PrefetchBlockData {
   private final int numBlocks;
 
   /**
-   * Constructs an instance of {@link BlockData}.
+   * Constructs an instance of BlockData.
    * @param fileSize the size of a file.
    * @param blockSize the file is divided into blocks of this size.
    * @throws IllegalArgumentException if fileSize is negative.

@@ -315,7 +315,7 @@ final public class AliyunOSSUtils {
     }
 
     /**
-     * Get a integer option >= the minimum allowed value.
+     * Get a integer option that is no less than the minimum allowed value.
      * @param conf configuration
      * @param key key to look up
      * @param defVal default value
@@ -333,7 +333,7 @@ final public class AliyunOSSUtils {
     }
 
     /**
-     * Get a long option >= the minimum allowed value.
+     * Get a long option that is no less than the minimum allowed value.
      * @param conf configuration
      * @param key key to look up
      * @param defVal default value

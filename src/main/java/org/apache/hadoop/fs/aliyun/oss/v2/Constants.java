@@ -173,7 +173,7 @@ public final class Constants {
             "fs.oss.fast.upload.buffer";
 
     /**
-     * Buffer blocks to disk: {@value}.
+     * Buffer blocks to disk: {@value }.
      * Capacity is limited to available disk space.
      */
     public static final String FAST_UPLOAD_BUFFER_DISK = "disk";
