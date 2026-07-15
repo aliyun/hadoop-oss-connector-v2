@@ -5,7 +5,6 @@
 package org.apache.hadoop.fs.aliyun.oss.v2.unit.prefetchstream;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.ChangeDetectionPolicy;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.ExecutorServiceFuturePool;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.InputPolicy;
 import org.apache.hadoop.fs.aliyun.oss.v2.prefetchstream.ReadOpContext;
@@ -63,13 +62,6 @@ class TestReadOpContextAndFuturePool {
         assertSame(ctx, returned);
         assertEquals(policy, ctx.getInputPolicy());
 
-        ChangeDetectionPolicy cdp = ChangeDetectionPolicy.createPolicy(
-                ChangeDetectionPolicy.Mode.None,
-                ChangeDetectionPolicy.Source.None, false);
-        returned = ctx.withChangeDetectionPolicy(cdp);
-        assertSame(ctx, returned);
-        assertSame(cdp, ctx.getChangeDetectionPolicy());
-
         returned = ctx.withReadahead(8192L);
         assertSame(ctx, returned);
         assertEquals(8192L, ctx.getReadahead());
@@ -86,10 +78,6 @@ class TestReadOpContextAndFuturePool {
                 path, null, null,
                 1024, 4, 100, 2, 200, 500, 64, 256, 2)
                 .withInputPolicy(InputPolicy.Normal)
-                .withChangeDetectionPolicy(
-                        ChangeDetectionPolicy.createPolicy(
-                                ChangeDetectionPolicy.Mode.None,
-                                ChangeDetectionPolicy.Source.None, false))
                 .withReadahead(1024L)
                 .withAsyncDrainThreshold(0L);
 
@@ -103,23 +91,6 @@ class TestReadOpContextAndFuturePool {
         ReadOpContext ctx = new ReadOpContext(
                 path, null, null,
                 1024, 4, 100, 2, 200, 500, 64, 256, 2)
-                .withChangeDetectionPolicy(
-                        ChangeDetectionPolicy.createPolicy(
-                                ChangeDetectionPolicy.Mode.None,
-                                ChangeDetectionPolicy.Source.None, false))
-                .withReadahead(0L)
-                .withAsyncDrainThreshold(0L);
-
-        assertThrows(NullPointerException.class, ctx::build);
-    }
-
-    @Test
-    void testReadOpContextBuildMissingChangeDetectionPolicy() {
-        Path path = new Path("oss://bucket/key");
-        ReadOpContext ctx = new ReadOpContext(
-                path, null, null,
-                1024, 4, 100, 2, 200, 500, 64, 256, 2)
-                .withInputPolicy(InputPolicy.Normal)
                 .withReadahead(0L)
                 .withAsyncDrainThreshold(0L);
 
@@ -133,10 +104,6 @@ class TestReadOpContextAndFuturePool {
                 path, null, null,
                 1024, 4, 100, 2, 200, 500, 64, 256, 2)
                 .withInputPolicy(InputPolicy.Normal)
-                .withChangeDetectionPolicy(
-                        ChangeDetectionPolicy.createPolicy(
-                                ChangeDetectionPolicy.Mode.None,
-                                ChangeDetectionPolicy.Source.None, false))
                 .withReadahead(-1L)
                 .withAsyncDrainThreshold(0L);
 
@@ -150,10 +117,6 @@ class TestReadOpContextAndFuturePool {
                 path, null, null,
                 1024, 4, 100, 2, 200, 500, 64, 256, 2)
                 .withInputPolicy(InputPolicy.Normal)
-                .withChangeDetectionPolicy(
-                        ChangeDetectionPolicy.createPolicy(
-                                ChangeDetectionPolicy.Mode.None,
-                                ChangeDetectionPolicy.Source.None, false))
                 .withReadahead(0L)
                 .withAsyncDrainThreshold(-1L);
 
@@ -220,10 +183,6 @@ class TestReadOpContextAndFuturePool {
                 new Path("oss://bucket/file"), null, null,
                 1024, 4, 100, 2, 200, 500, 64, 256, 2)
                 .withInputPolicy(InputPolicy.Normal)
-                .withChangeDetectionPolicy(
-                        ChangeDetectionPolicy.createPolicy(
-                                ChangeDetectionPolicy.Mode.None,
-                                ChangeDetectionPolicy.Source.None, false))
                 .withReadahead(0L)
                 .withAsyncDrainThreshold(0L)
                 .build();
