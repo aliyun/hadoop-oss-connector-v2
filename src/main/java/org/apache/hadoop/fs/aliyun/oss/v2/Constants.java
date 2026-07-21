@@ -35,8 +35,11 @@ public final class Constants {
             VersionInfoUtils.getDefaultUserAgent();
 
     // Class of credential provider
-//  public static final String CREDENTIALS_PROVIDER_KEY =
-//      "fs.oss.credentials.provider";
+    public static final String CREDENTIALS_PROVIDER_KEY =
+        "fs.oss.credentials.provider";
+
+    // Per-bucket configuration prefix
+    public static final String FS_OSS_BUCKET_PREFIX = "fs.oss.bucket.";
 
     public static final int OSS_DEFAULT_PORT = -1;
 
@@ -44,6 +47,23 @@ public final class Constants {
     public static final String ACCESS_KEY_ID = "fs.oss.accessKeyId";
     public static final String ACCESS_KEY_SECRET = "fs.oss.accessKeySecret";
     public static final String SECURITY_TOKEN = "fs.oss.securityToken";
+
+    // ECS RAM Role configuration
+    public static final String ECS_RAM_ROLE_NAME_KEY = "fs.oss.ecs.ram.role.name";
+
+    // RAM Role ARN (STS AssumeRole) configuration
+    public static final String ASSUMED_ROLE_ARN = "fs.oss.assumed.role.arn";
+    public static final String ASSUMED_ROLE_SESSION_NAME = "fs.oss.assumed.role.session.name";
+    public static final String ASSUMED_ROLE_POLICY = "fs.oss.assumed.role.policy";
+    public static final String ASSUMED_ROLE_EXPIRATION = "fs.oss.assumed.role.expiration";
+
+    // OIDC (K8s RRSA) configuration
+    public static final String OIDC_ROLE_ARN = "fs.oss.oidc.role.arn";
+    public static final String OIDC_PROVIDER_ARN = "fs.oss.oidc.provider.arn";
+    public static final String OIDC_TOKEN_FILE = "fs.oss.oidc.token.file";
+    public static final String OIDC_SESSION_NAME = "fs.oss.oidc.session.name";
+    public static final String OIDC_POLICY = "fs.oss.oidc.policy";
+    public static final String OIDC_EXPIRATION = "fs.oss.oidc.expiration";
 
     // Number of simultaneous connections to oss
     public static final String MAXIMUM_CONNECTIONS_KEY =
@@ -261,6 +281,44 @@ public final class Constants {
     public static final boolean FS_OSS_PERFORMANCE_FLAGS_CREATE_DEFAULT = false;
 
 
+    /**
+     * eTag as the change detection mechanism.
+     */
+    public static final String CHANGE_DETECT_SOURCE_ETAG = "etag";
+
+    public static final String CHANGE_DETECT_MODE =
+            "fs.oss.change.detection.mode";
+
+
+    public static final String CHANGE_DETECT_SOURCE
+            = "fs.oss.change.detection.source";
+    public static final String CHANGE_DETECT_MODE_CLIENT = "client";
+
+    /**
+     * Change is detected by passing the expected value in the GetObject request.
+     * If the expected value is unavailable, {@code RemoteFileChangedException} is
+     * thrown.
+     */
+    public static final String CHANGE_DETECT_MODE_SERVER = "server";
+
+    public static final String CHANGE_DETECT_MODE_DEFAULT =
+            CHANGE_DETECT_MODE_SERVER;
+
+    /**
+     * Change is detected on the client side by comparing the returned id with the
+     * expected id.  A difference results in a WARN level message being logged.
+     */
+    public static final String CHANGE_DETECT_MODE_WARN = "warn";
+
+    /**
+     * Change detection is turned off.  Readers may see inconsistent results due
+     * to concurrent writes without any exception or warning messages.  May be
+     * useful with third-party oss API implementations that don't support one of
+     * the change detection modes.
+     */
+    public static final String CHANGE_DETECT_MODE_NONE = "none";
+
+
     public static final String INPUT_FADV_NORMAL = "normal";
 
     public static final String HADOOP_TMP_DIR = "hadoop.tmp.dir";
@@ -278,7 +336,7 @@ public final class Constants {
     public static final int DEFAULT_PREFETCH_MAX_DISK_BLOCKS_COUNT = 4;
 
     public static final String PREFETCH_BLOCK_COUNT_KEY = "fs.oss.prefetch.block.count";
-    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 8;
+    public static final int PREFETCH_BLOCK_DEFAULT_COUNT = 4;
 
     public static final String MAX_THREADS = "fs.oss.threads.max";
     public static final int DEFAULT_MAX_THREADS = 96;
@@ -327,4 +385,9 @@ public final class Constants {
     public static final String DEFAULT_LOGGING_CLIENT_LEVEL = "none";
 
     public static final String ACC_RULES = "fs.oss.acc.rules";
+
+    /**
+     * Prefix for all fs.oss configuration keys: {@value}.
+     */
+    public static final String FS_OSS_PREFIX = "fs.oss.";
 }

@@ -32,8 +32,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.*;
 
@@ -99,6 +101,10 @@ final public class AliyunOSSUtils {
     /**
      * Create credential provider specified by configuration, or create default
      * credential provider if not specified.
+     * <p>
+     * Supports comma-separated list of provider class names. The first provider
+     * that can successfully provide credentials will be used.
+     * If no provider is configured, falls back to {@code DefaultCredentialProviderChain}.
      *
      * @param conf configuration
      * @return a credential provider
@@ -106,8 +112,116 @@ final public class AliyunOSSUtils {
      * nested inside the IOE.
      */
     public static CredentialsProvider getCredentialsProvider(Configuration conf) throws CredentialsException, IOException {
-        CredentialsProvider credentials;
+        String providerClassNames = conf.getTrimmed(CREDENTIALS_PROVIDER_KEY, "");
 
+        if (StringUtils.isEmpty(providerClassNames)) {
+            // No provider configured, use DefaultCredentialProviderChain
+            LOG.debug("No credential provider configured, using DefaultCredentialProviderChain");
+            return createDefaultCredentialProviderChain(conf);
+        }
+
+        String[] classNames = providerClassNames.split(",");
+
+        // Find the first provider that can be created AND obtain credentials.
+        // IMPORTANT: Not only must the provider be created successfully, but
+        // getCredentials() must also succeed. For example, ECSRAMRoleCredentialsProvider
+        // can be instantiated anywhere, but getCredentials() only works on an ECS instance.
+        for (String className : classNames) {
+            String trimmed = className.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                CredentialsProvider provider = createSingleProvider(conf, trimmed);
+                // Verify the provider can actually obtain credentials
+                provider.getCredentials();
+                LOG.debug("Successfully created and verified credential provider: {}", trimmed);
+                return provider;
+            } catch (Exception e) {
+                LOG.warn("Credential provider {} failed (create or getCredentials), trying next. Error: {}",
+                        trimmed, e.getMessage());
+            }
+        }
+
+        throw new CredentialsException(
+                "All configured credential providers failed. Configured: " + providerClassNames);
+    }
+
+    /**
+     * Create a single CredentialsProvider instance from a class name.
+     *
+     * @param conf      configuration
+     * @param className fully qualified class name
+     * @return a credential provider instance
+     * @throws IOException if the provider cannot be created
+     */
+    private static CredentialsProvider createSingleProvider(Configuration conf, String className)
+            throws IOException {
+        try {
+            Class<?> clazz = Class.forName(className);
+            if (!CredentialsProvider.class.isAssignableFrom(clazz)) {
+                throw new IOException("Class " + className
+                        + " does not implement CredentialsProvider interface");
+            }
+            Constructor<?> constructor = clazz.getConstructor(Configuration.class);
+            return (CredentialsProvider) constructor.newInstance(conf);
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Credential provider class not found: " + className, e);
+        } catch (NoSuchMethodException e) {
+            // Try no-arg constructor
+            try {
+                Class<?> clazz = Class.forName(className);
+                Constructor<?> constructor = clazz.getConstructor();
+                return (CredentialsProvider) constructor.newInstance();
+            } catch (Exception ex) {
+                throw new IOException(
+                        "Cannot instantiate credential provider " + className
+                                + ": no suitable constructor found", ex);
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to create credential provider: " + className, e);
+        }
+    }
+
+    /**
+     * Create a DefaultCredentialProviderChain that uses the Alibaba Cloud
+     * credentials SDK default credential chain.
+     * <p>
+     * If the default chain is available and can obtain credentials, it is used.
+     * Otherwise, falls back to static AK/SK credentials from the configuration.
+     *
+     * @param conf configuration
+     * @return a credential provider (default chain or static fallback)
+     * @throws IOException if neither default chain nor static credentials work
+     */
+    private static CredentialsProvider createDefaultCredentialProviderChain(Configuration conf)
+            throws IOException {
+        try {
+            String chainClassName =
+                    "org.apache.hadoop.fs.aliyun.oss.v2.credentials.DefaultCredentialProviderChain";
+            CredentialsProvider chainProvider = createSingleProvider(conf, chainClassName);
+            // Verify the default chain can actually obtain credentials
+            chainProvider.getCredentials();
+            LOG.debug("DefaultCredentialProviderChain created and verified successfully");
+            return chainProvider;
+        } catch (Exception e) {
+            // DefaultCredentialProviderChain not available or cannot obtain credentials,
+            // fall back to static AK/SK credentials from configuration
+            LOG.warn("DefaultCredentialProviderChain not available or failed, "
+                    + "falling back to static credentials: {}", e.getMessage());
+            return createStaticCredentialsProvider(conf);
+        }
+    }
+
+    /**
+     * Create a StaticCredentialsProvider from AK/SK configuration.
+     *
+     * @param conf configuration
+     * @return a static credentials provider
+     * @throws IOException if credentials cannot be read
+     */
+    private static CredentialsProvider createStaticCredentialsProvider(Configuration conf)
+            throws IOException {
         String accessKeyId;
         String accessKeySecret;
         String securityToken;
@@ -131,13 +245,10 @@ final public class AliyunOSSUtils {
         }
 
         if (StringUtils.isNotEmpty(securityToken)) {
-            credentials = new StaticCredentialsProvider(accessKeyId, accessKeySecret,
-                    securityToken);
+            return new StaticCredentialsProvider(accessKeyId, accessKeySecret, securityToken);
         } else {
-            credentials = new StaticCredentialsProvider(accessKeyId, accessKeySecret);
+            return new StaticCredentialsProvider(accessKeyId, accessKeySecret);
         }
-
-        return credentials;
     }
 
     /**
@@ -269,6 +380,120 @@ final public class AliyunOSSUtils {
      */
     public static String formatInstant(Instant instant) {
         return DateTimeFormatter.ISO_INSTANT.format(instant);
+    }
+
+    /**
+     * Propagates bucket-specific settings into generic OSS configuration keys.
+     * This is done by propagating the values of the form
+     * {@code fs.oss.bucket.${bucket}.key} to
+     * {@code fs.oss.key}, for all values of "key" other than a small set
+     * of unmodifiable values.
+     *
+     * The source of the updated property is set to the key name of the bucket
+     * property, to aid in diagnostics of where things came from.
+     *
+     * Returns a new configuration. Why the clone?
+     * You can use the same conf for different filesystems, and the original
+     * values are not updated.
+     *
+     * The {@code fs.oss.impl} property cannot be set, nor can
+     * any with the prefix {@code fs.oss.bucket}.
+     *
+     * Modeled after S3A's {@code S3AUtils.propagateBucketOptions()}.
+     *
+     * @param source Source Configuration object.
+     * @param bucket bucket name. Must not be empty.
+     * @return a (potentially) patched clone of the original.
+     */
+    public static Configuration propagateBucketOptions(Configuration source,
+                                                        String bucket) {
+
+        Preconditions.checkArgument(StringUtils.isNotEmpty(bucket),
+                "bucket is null/empty");
+        final String bucketPrefix = FS_OSS_BUCKET_PREFIX + bucket + '.';
+        LOG.debug("Propagating entries under {}", bucketPrefix);
+        final Configuration dest = new Configuration(source);
+        for (Map.Entry<String, String> entry : source) {
+            final String key = entry.getKey();
+            // get the (unexpanded) value.
+            final String value = entry.getValue();
+            if (!key.startsWith(bucketPrefix) || bucketPrefix.equals(key)) {
+                continue;
+            }
+            // there's a bucket prefix, so strip it
+            final String stripped = key.substring(bucketPrefix.length());
+            if (stripped.startsWith("bucket.") || "impl".equals(stripped)) {
+                // tell user off: these keys are not allowed to be overridden
+                LOG.debug("Ignoring bucket option {}", key);
+            } else {
+                // propagate the value, building a new origin field.
+                // to track overwrites, the generic key is overwritten even if
+                // already matches the new one.
+                String origin = "[" + StringUtils.join(
+                        source.getPropertySources(key), ", ") + "]";
+                final String generic = FS_OSS_PREFIX + stripped;
+                LOG.debug("Updating {} from {}", generic, origin);
+                dest.set(generic, value, key + " via " + origin);
+            }
+        }
+        return dest;
+    }
+
+    /**
+     * Set a bucket-specific property to a particular value.
+     * If the generic key passed in has an {@code fs.oss.} prefix,
+     * that's stripped off, so that when the bucket properties are propagated
+     * down to the generic values, that value gets copied down.
+     *
+     * @param conf       configuration to set
+     * @param bucket     bucket name
+     * @param genericKey key; can start with "fs.oss."
+     * @param value      value to set
+     */
+    public static void setBucketOption(Configuration conf, String bucket,
+                                        String genericKey, String value) {
+        final String baseKey = genericKey.startsWith(FS_OSS_PREFIX)
+                ? genericKey.substring(FS_OSS_PREFIX.length())
+                : genericKey;
+        conf.set(FS_OSS_BUCKET_PREFIX + bucket + '.' + baseKey, value,
+                "AliyunOSSUtils");
+    }
+
+    /**
+     * Clear a bucket-specific property.
+     * If the generic key passed in has an {@code fs.oss.} prefix,
+     * that's stripped off.
+     *
+     * @param conf       configuration to modify
+     * @param bucket     bucket name
+     * @param genericKey key; can start with "fs.oss."
+     */
+    public static void clearBucketOption(Configuration conf, String bucket,
+                                          String genericKey) {
+        final String baseKey = genericKey.startsWith(FS_OSS_PREFIX)
+                ? genericKey.substring(FS_OSS_PREFIX.length())
+                : genericKey;
+        String k = FS_OSS_BUCKET_PREFIX + bucket + '.' + baseKey;
+        LOG.debug("Unset {}", k);
+        conf.unset(k);
+    }
+
+    /**
+     * Get a bucket-specific property.
+     * If the generic key passed in has an {@code fs.oss.} prefix,
+     * that's stripped off.
+     *
+     * @param conf       configuration to query
+     * @param bucket     bucket name
+     * @param genericKey key; can start with "fs.oss."
+     * @return the bucket option, null if there is none
+     */
+    public static String getBucketOption(Configuration conf, String bucket,
+                                          String genericKey) {
+        final String baseKey = genericKey.startsWith(FS_OSS_PREFIX)
+                ? genericKey.substring(FS_OSS_PREFIX.length())
+                : genericKey;
+        return conf.get(FS_OSS_BUCKET_PREFIX + bucket + '.' + baseKey);
     }
 
 }

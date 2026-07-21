@@ -244,6 +244,7 @@ public class OperationStat {
             stat.setParentOperationName(parentOperationName);
             stat.setStartTime(startTime);
             stat.setBytesProcessed(bytesProcessed);
+            stat.setDurationMicros(durationMicros);
             stat.setByteEnd(byteEnd);
             stat.setByteStart(byteStart);
             stat.setUploadId(uploadId);
