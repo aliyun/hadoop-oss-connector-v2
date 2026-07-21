@@ -1,8 +1,11 @@
 package org.apache.hadoop.fs.aliyun.oss.v2.unit.legency;
 
+import com.aliyun.sdk.service.oss2.credentials.CredentialsProvider;
+import com.aliyun.sdk.service.oss2.exceptions.CredentialsException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.aliyun.oss.v2.Constants;
+import org.apache.hadoop.fs.aliyun.oss.v2.credentials.SimpleCredentialsProvider;
 import org.apache.hadoop.fs.aliyun.oss.v2.legency.AliyunOSSUtils;
 import org.apache.hadoop.fs.aliyun.oss.v2.legency.FileStatusAcceptor;
 import org.apache.hadoop.fs.aliyun.oss.v2.model.ObjectSummaryParam;
@@ -362,5 +365,113 @@ public class TestAliyunOSSUtils {
                 new FileStatusAcceptor.AcceptAllButSelf(basePath);
 
         assertFalse(acceptor.accept(basePath, "base/"));
+    }
+
+    // ==================== getCredentialsProvider ====================
+
+    private static final String SIMPLE_PROVIDER =
+            "org.apache.hadoop.fs.aliyun.oss.v2.credentials.SimpleCredentialsProvider";
+    private static final String FAKE_PROVIDER = "com.nonexistent.FakeProvider";
+
+    private Configuration confWithAK() {
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.ACCESS_KEY_ID, "testAK");
+        conf.set(Constants.ACCESS_KEY_SECRET, "testSK");
+        return conf;
+    }
+
+    @Test
+    public void testGetCredentialsProviderSingleSuccess() throws Exception {
+        Configuration conf = confWithAK();
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, SIMPLE_PROVIDER);
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertInstanceOf(SimpleCredentialsProvider.class, provider);
+    }
+
+    @Test
+    public void testGetCredentialsProviderSingleClassNotFound() {
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, FAKE_PROVIDER);
+        assertThrows(CredentialsException.class,
+                () -> AliyunOSSUtils.getCredentialsProvider(conf));
+    }
+
+    @Test
+    public void testGetCredentialsProviderSingleMissingAK() {
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, SIMPLE_PROVIDER);
+        // No AK/SK → SimpleCredentialsProvider throws → loop ends → CredentialsException
+        assertThrows(CredentialsException.class,
+                () -> AliyunOSSUtils.getCredentialsProvider(conf));
+    }
+
+    @Test
+    public void testGetCredentialsProviderMultipleFirstFailsSecondSucceeds() throws Exception {
+        Configuration conf = confWithAK();
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, FAKE_PROVIDER + "," + SIMPLE_PROVIDER);
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertInstanceOf(SimpleCredentialsProvider.class, provider);
+    }
+
+    @Test
+    public void testGetCredentialsProviderAllFail() {
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, FAKE_PROVIDER + ",com.another.Fake");
+        assertThrows(CredentialsException.class,
+                () -> AliyunOSSUtils.getCredentialsProvider(conf));
+    }
+
+    @Test
+    public void testGetCredentialsProviderSkipEmptyInMiddle() throws Exception {
+        // "invalid,,valid" → empty is skipped, valid is tried
+        Configuration conf = confWithAK();
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, FAKE_PROVIDER + ",," + SIMPLE_PROVIDER);
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertInstanceOf(SimpleCredentialsProvider.class, provider);
+    }
+
+    @Test
+    public void testGetCredentialsProviderLeadingEmpties() throws Exception {
+        // ",,valid" → leading empties skipped, valid is tried
+        Configuration conf = confWithAK();
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, ",,"+ SIMPLE_PROVIDER);
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertInstanceOf(SimpleCredentialsProvider.class, provider);
+    }
+
+    @Test
+    public void testGetCredentialsProviderOnlyComma() {
+        // "," → split(",") = [""] (length=1, empty) → all empty → CredentialsException
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, ",");
+        assertThrows(CredentialsException.class,
+                () -> AliyunOSSUtils.getCredentialsProvider(conf));
+    }
+
+    @Test
+    public void testGetCredentialsProviderAllCommas() {
+        // ",," → split(",") = ["", ""] → all empty → CredentialsException
+        Configuration conf = new Configuration(false);
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, ",,");
+        assertThrows(CredentialsException.class,
+                () -> AliyunOSSUtils.getCredentialsProvider(conf));
+    }
+
+    @Test
+    public void testGetCredentialsProviderTrailingComma() throws Exception {
+        // "valid," → split(",") = ["valid"] (trailing empty discarded) → success
+        Configuration conf = confWithAK();
+        conf.set(Constants.CREDENTIALS_PROVIDER_KEY, SIMPLE_PROVIDER + ",");
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertInstanceOf(SimpleCredentialsProvider.class, provider);
+    }
+
+    @Test
+    public void testGetCredentialsProviderNoConfigWithAK() throws Exception {
+        // No provider configured, but AK/SK present → falls back to StaticCredentialsProvider
+        Configuration conf = confWithAK();
+        // Don't set CREDENTIALS_PROVIDER_KEY
+        CredentialsProvider provider = AliyunOSSUtils.getCredentialsProvider(conf);
+        assertNotNull(provider);
     }
 }

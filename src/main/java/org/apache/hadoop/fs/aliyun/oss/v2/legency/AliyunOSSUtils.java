@@ -121,12 +121,8 @@ final public class AliyunOSSUtils {
         }
 
         String[] classNames = providerClassNames.split(",");
-        if (classNames.length == 1) {
-            // Single provider
-            return createSingleProvider(conf, classNames[0].trim());
-        }
 
-        // Multiple providers: build a chain, return the first successful one.
+        // Find the first provider that can be created AND obtain credentials.
         // IMPORTANT: Not only must the provider be created successfully, but
         // getCredentials() must also succeed. For example, ECSRAMRoleCredentialsProvider
         // can be instantiated anywhere, but getCredentials() only works on an ECS instance.

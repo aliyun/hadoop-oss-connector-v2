@@ -1,7 +1,5 @@
 package org.apache.hadoop.fs.aliyun.oss.v2.credentials;
 
-import com.aliyun.sdk.service.oss2.credentials.Credentials;
-import com.aliyun.sdk.service.oss2.credentials.CredentialsProvider;
 import com.aliyun.sdk.service.oss2.exceptions.CredentialsException;
 import org.apache.hadoop.conf.Configuration;
 import org.slf4j.Logger;
@@ -41,18 +39,13 @@ import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.*;
  * This provider uses reflection to avoid a compile-time dependency on
  * {@code credentials-java}.
  */
-public class RAMRoleARNCredentialsProvider implements CredentialsProvider {
+public class RAMRoleARNCredentialsProvider extends AbstractReflectiveCredentialsProvider {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(RAMRoleARNCredentialsProvider.class);
 
-    private static final String CLIENT_CLASS = "com.aliyun.credentials.Client";
-    private static final String CONFIG_CLASS = "com.aliyun.credentials.models.Config";
-
     private static final String DEFAULT_SESSION_NAME = "hadoop-oss-session";
     private static final int DEFAULT_EXPIRATION = 3600;
-
-    private final Object credentialsClient;
 
     /**
      * Constructor for reflective instantiation.
@@ -75,8 +68,8 @@ public class RAMRoleARNCredentialsProvider implements CredentialsProvider {
                     "RAMRoleARNCredentialsProvider requires " + ASSUMED_ROLE_ARN);
         }
 
-        Class<?> configClass = Class.forName(CONFIG_CLASS);
-        Object config = configClass.getDeclaredConstructor().newInstance();
+        Object config = createConfig();
+        Class<?> configClass = config.getClass();
 
         // Set type to "ram_role_arn"
         Method setType = configClass.getMethod("setType", String.class);
@@ -109,53 +102,14 @@ public class RAMRoleARNCredentialsProvider implements CredentialsProvider {
         Method setExpiration = configClass.getMethod("setRoleSessionExpiration", Integer.class);
         setExpiration.invoke(config, expiration);
 
-        // Create the Client
-        Class<?> clientClass = Class.forName(CLIENT_CLASS);
-        this.credentialsClient = clientClass
-                .getDeclaredConstructor(configClass)
-                .newInstance(config);
+        createClient(config);
 
         LOG.info("Initialized RAMRoleARNCredentialsProvider with roleArn={}, sessionName={}",
                 roleArn, sessionName);
     }
 
     @Override
-    public Credentials getCredentials() {
-        try {
-            Method getCredential = credentialsClient.getClass().getMethod("getCredential");
-            Object credential = getCredential.invoke(credentialsClient);
-
-            if (credential == null) {
-                throw new CredentialsException(
-                        "RAM Role ARN credential chain returned null credential");
-            }
-
-            String accessKeyId = (String) credential.getClass()
-                    .getMethod("getAccessKeyId").invoke(credential);
-            String accessKeySecret = (String) credential.getClass()
-                    .getMethod("getAccessKeySecret").invoke(credential);
-            String securityToken = (String) credential.getClass()
-                    .getMethod("getSecurityToken").invoke(credential);
-
-            if (accessKeyId == null || accessKeyId.isEmpty()
-                    || accessKeySecret == null || accessKeySecret.isEmpty()) {
-                throw new CredentialsException(
-                        "RAM Role ARN returned empty accessKeyId or accessKeySecret");
-            }
-
-            LOG.debug("Successfully obtained STS credentials via AssumeRole (type={})",
-                    credential.getClass().getMethod("getType").invoke(credential));
-
-            if (securityToken != null && !securityToken.isEmpty()) {
-                return new Credentials(accessKeyId, accessKeySecret, securityToken);
-            } else {
-                return new Credentials(accessKeyId, accessKeySecret);
-            }
-        } catch (CredentialsException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new CredentialsException(
-                    "Failed to obtain credentials via RAM Role ARN: " + e.getMessage(), e);
-        }
+    protected String getProviderName() {
+        return "RAM Role ARN";
     }
 }

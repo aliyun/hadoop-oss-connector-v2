@@ -7,8 +7,6 @@ import org.apache.hadoop.fs.aliyun.oss.v2.legency.AliyunOSSUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-
 import static org.apache.hadoop.fs.aliyun.oss.v2.Constants.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -70,8 +68,8 @@ public class TestCredentialsProvider {
         conf.set(ACCESS_KEY_ID, "ak");
         conf.set(ACCESS_KEY_SECRET, "sk");
 
-        // Should throw IOException since the only provider fails
-        assertThrows(IOException.class, () -> {
+        // Unified loop: all providers fail → CredentialsException
+        assertThrows(CredentialsException.class, () -> {
             AliyunOSSUtils.getCredentialsProvider(conf);
         });
     }
